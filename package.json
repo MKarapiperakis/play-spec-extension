@@ -1,0 +1,81 @@
+{
+  "name": "playspec",
+  "displayName": "PlaySpec – OpenAPI to Playwright Tests",
+  "description": "Generate a runnable Playwright API test project from an OpenAPI/Swagger spec, directly inside your workspace.",
+  "version": "0.1.0",
+  "publisher": "playspec",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Testing",
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "playspec.generateFromFile",
+        "title": "PlaySpec: Generate Playwright Tests from Spec File...",
+        "category": "PlaySpec"
+      },
+      {
+        "command": "playspec.generateFromUrl",
+        "title": "PlaySpec: Generate Playwright Tests from Spec URL...",
+        "category": "PlaySpec"
+      },
+      {
+        "command": "playspec.generateFromExplorer",
+        "title": "PlaySpec: Generate Playwright Tests from This Spec",
+        "category": "PlaySpec"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "playspec.generateFromExplorer",
+          "when": "resourceExtname == .json || resourceExtname == .yaml || resourceExtname == .yml",
+          "group": "playspec"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "playspec.generateFromExplorer",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "PlaySpec",
+      "properties": {
+        "playspec.outputFolderName": {
+          "type": "string",
+          "default": "playwright-tests",
+          "description": "Name of the folder created at the workspace root to hold the generated Playwright test project."
+        },
+        "playspec.skipResponseValidation": {
+          "type": "boolean",
+          "default": false,
+          "description": "Default value written to the generated project's .env.sample for SKIP_RESPONSE_VALIDATION."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "@apidevtools/swagger-parser": "^10.1.0",
+    "js-yaml": "^4.1.0"
+  }
+}

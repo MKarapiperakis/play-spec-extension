@@ -1,3 +1,7 @@
+# Build output
+out/
+*.vsix
+
 # Logs
 logs
 *.log
