@@ -28,7 +28,8 @@
       {
         "command": "playspec.generateFromExplorer",
         "title": "PlaySpec: Generate Playwright Tests from This Spec",
-        "category": "PlaySpec"
+        "category": "PlaySpec",
+        "icon": "$(play)"
       }
     ],
     "menus": {
@@ -37,6 +38,13 @@
           "command": "playspec.generateFromExplorer",
           "when": "resourceExtname == .json || resourceExtname == .yaml || resourceExtname == .yml",
           "group": "playspec"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "playspec.generateFromExplorer",
+          "when": "resourceExtname == .json || resourceExtname == .yaml || resourceExtname == .yml",
+          "group": "navigation"
         }
       ],
       "commandPalette": [
