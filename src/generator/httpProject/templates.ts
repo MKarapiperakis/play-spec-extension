@@ -6,10 +6,11 @@ export function packageJson(projectName: string, tagSlugs: string[] = []): strin
     test: 'playwright test',
     report: 'playwright show-report',
   };
-  // One independent script per tag/spec file, so a single tag's tests can be
-  // run in isolation without invoking the whole suite.
+  // One independent script per tag, so a single tag's tests can be run in
+  // isolation without invoking the whole suite. Each tag is a directory of
+  // one-file-per-operation spec files (see README's "Test files" section).
   for (const slug of tagSlugs) {
-    scripts[`test:${slug}`] = `playwright test tests/spec/${slug}.spec.ts`;
+    scripts[`test:${slug}`] = `playwright test tests/spec/${slug}/`;
   }
 
   return JSON.stringify(
@@ -159,7 +160,11 @@ export function urlHelperFile(): string {
  * Builds a concrete URL from a path template, substituting \`{name}\` path
  * parameters and appending query parameters using the values in
  * tests/data/params.ts. Throws a clear error if that file is missing an
- * entry/value a test needs, rather than silently sending a broken request.
+ * entry/value a path param needs, rather than silently sending a broken
+ * request. A query param whose value is missing or blank ("") is left out
+ * of the request entirely — that's the default for an optional query param
+ * with no explicit example in the spec; fill in a value in params.ts to
+ * have it sent.
  *
  * Strips any leading "/" from pathTemplate: request paths must be relative
  * to playwright.config.ts's (trailing-slash) baseURL, or standard
@@ -175,14 +180,14 @@ export function buildUrl(operationKey: string, pathTemplate: string, queryParamN
   let url = pathTemplate.replace(/^\\/+/, '');
   for (const match of pathTemplate.matchAll(/\\{([^}]+)\\}/g)) {
     const name = match[1];
-    if (values[name] === undefined) {
+    if (!values[name]) {
       throw new Error(\`Missing value for "\${name}" in tests/data/params.ts under "\${operationKey}"\`);
     }
     url = url.replace(\`{\${name}}\`, encodeURIComponent(values[name]));
   }
 
   const query = queryParamNames
-    .filter((name) => values[name] !== undefined)
+    .filter((name) => values[name])
     .map((name) => \`\${encodeURIComponent(name)}=\${encodeURIComponent(values[name])}\`)
     .join('&');
 
@@ -244,7 +249,8 @@ export function readme(projectName: string, opCount: number, tagSlugs: string[] 
   return `# ${projectName}
 
 Playwright API tests generated from an OpenAPI/Swagger spec by the PlaySpec VS Code extension.
-${opCount} operation(s) were found in the spec and turned into smoke tests grouped by tag under \`tests/spec/\`.
+${opCount} operation(s) were found in the spec and turned into smoke tests under \`tests/spec/<tag>/\`,
+one file per operation.
 
 Each test calls the endpoint directly over HTTP (via Playwright's \`request\` fixture — no browser
 involved), asserts the response status is one of the spec's documented success codes, and — where
@@ -268,11 +274,15 @@ ${perTagScripts}
 
 ## Test data
 
-Path/query parameter values that operations need (e.g. the \`{id}\` in \`/api/user/{id}\`) live in
-\`tests/data/params.ts\`, keyed by \`"METHOD /path"\` — pre-filled with placeholders derived from the
-spec's \`example\`/\`default\`/\`enum\` values. Since a real ID often doesn't exist anywhere in the spec
-itself, edit that one file with real values for your environment; every test that needs one reads
-from it at runtime (via \`tests/helpers/url.ts\`) instead of a value baked into the test file.
+Path parameters (e.g. the \`{id}\` in \`/api/user/{id}\`) and every query parameter an operation
+declares — required or optional — live in \`tests/data/params.ts\`, keyed by \`"METHOD /path"\`.
+Path params and required query params are pre-filled with placeholders derived from the spec's
+\`example\`/\`default\`/\`enum\` values (or a type-based guess if the spec doesn't declare one), since
+a real ID often doesn't exist anywhere in the spec itself — edit those with real values for your
+environment. Optional query params are listed too, but left **blank** unless the spec declared an
+explicit example — a blank value means that param is left out of the request entirely; fill one in
+to have it sent. Every test that needs one reads from this file at runtime (via
+\`tests/helpers/url.ts\`) instead of a value baked into the test file.
 
 Request bodies are still generated inline per test from the spec's schema — edit the test file
 directly if a specific body needs different data.
@@ -280,6 +290,14 @@ directly if a specific body needs different data.
 Set \`SKIP_RESPONSE_VALIDATION=true\` in \`.env\` to skip response-body shape checks entirely (the
 HTTP status code is still asserted) — useful before you've filled in \`tests/data/params.ts\` with
 values that actually resolve to something in your environment.
+
+## Test files
+
+Each operation gets its own file, \`tests/spec/<tag>/<method>-<path>.spec.ts\` — e.g.
+\`tests/spec/pets/get-pets-id.spec.ts\`. Edit these freely: add assertions, change the request, whatever
+you need. \`tests/spec/.playspec-manifest.json\` is bookkeeping PlaySpec uses to know, next time you
+regenerate, whether a given operation's file would come out any different — **commit it to version
+control** alongside the tests so regeneration stays safe for everyone working on this project.
 
 ## Notes & limitations
 
@@ -293,8 +311,19 @@ values that actually resolve to something in your environment.
 
 ## Regenerating
 
-Re-run **PlaySpec: Generate Playwright Tests from Spec File...** (or **...from Spec URL...**) from
-the VS Code command palette against an updated spec to refresh this project. Files you've hand-edited
-(like \`tests/data/params.ts\` or \`.env\`) will be asked about before being overwritten.
+Re-run **PlaySpec: Generate Playwright Tests from Spec File...** (or **...from Spec URL...**) against
+an updated spec to refresh this project. This is designed to be safe to do repeatedly:
+
+- An operation's test file is only rewritten if that operation actually changed in the spec (compared
+  via a content hash in \`tests/spec/.playspec-manifest.json\`) — an unrelated hand-edited test is
+  never touched.
+- \`tests/data/params.ts\` is merged, not replaced — values you've already filled in are kept; only
+  genuinely new parameters get placeholder entries added.
+- \`package.json\` only ever gets scripts/dependencies *added*, never removed or overwritten, if you've
+  hand-added your own.
+- \`playwright.config.ts\`, \`.env.sample\`, \`README.md\`, and the \`tests/helpers/\` files are only
+  created the first time — never touched again, so your customizations to them are safe.
+- If an operation is removed from the spec, its test file is left in place (not deleted) — PlaySpec
+  will tell you which file(s) no longer match anything, so you can remove them yourself if you want to.
 `;
 }

@@ -1,9 +1,9 @@
-import { toSafeProjectName, jsString, toSlug, toCamelIdentifier, toEnvPrefix } from '../naming';
+import { jsString, toSlug, toCamelIdentifier, toEnvPrefix, toSafeProjectName } from '../naming';
 import { exampleFromSchema, isAssertableExample } from '../exampleValue';
 import { extractSecuritySchemes, SecurityScheme } from '../security';
 import { resolveBaseUrl } from '../baseUrl';
 import { listOperations, Operation } from '../operations';
-import { operationKey, dynamicParams, buildParamsByOperation, renderParamsFile } from '../paramsData';
+import { operationKey, dynamicParams, buildParamsByOperation } from '../paramsData';
 import * as templates from './templates';
 
 function slugifyTag(tag: string): string {
@@ -13,6 +13,17 @@ function slugifyTag(tag: string): string {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '') || 'default'
   );
+}
+
+/** Base slug for a single operation's file name, e.g. GET /pets/{id} -> "get-pets-id". */
+function slugifyOperationBase(op: Operation): string {
+  const pathSlug = op.path
+    .replace(/[{}]/g, '')
+    .replace(/^\/+|\/+$/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return pathSlug ? `${op.method}-${pathSlug}` : op.method;
 }
 
 /**
@@ -36,7 +47,7 @@ function slugifyTag(tag: string): string {
 function urlExprFor(op: Operation): string {
   const params = dynamicParams(op);
   if (!params.length) return jsString(op.path.replace(/^\/+/, ''));
-  const queryParamNames = op.parameters.filter((p) => p.in === 'query' && p.required).map((p) => p.name);
+  const queryParamNames = op.parameters.filter((p) => p.in === 'query').map((p) => p.name);
   return `buildUrl(${jsString(operationKey(op))}, ${jsString(op.path)}, ${JSON.stringify(queryParamNames)})`;
 }
 
@@ -114,27 +125,27 @@ function renderOperationTest(op: Operation, authRegistry: Map<string, AuthRegist
   return lines.join('\n');
 }
 
-function buildSpecFile(tag: string, operations: Operation[], authRegistry: Map<string, AuthRegistryEntry>): string {
-  const usedSchemeNames = new Set<string>();
-  for (const op of operations) {
-    for (const fn of resolveOperationAuthFns(op, authRegistry)) usedSchemeNames.add(fn.schemeName);
-  }
-  const authImports = [...usedSchemeNames]
-    .map((name) => authRegistry.get(name)!)
-    .map((fn) => `import { ${fn.functionName} } from '../helpers/auth/${fn.fileSlug}';`);
-
-  const usesDynamicParams = operations.some((op) => dynamicParams(op).length > 0);
+/**
+ * Full file content for a single operation: one test() per file, wrapped in
+ * a test.describe(tag) for report grouping. One-operation-per-file (rather
+ * than one file per tag) is what makes regeneration surgical — see
+ * projectWriter.ts, which only rewrites a given operation's file when this
+ * exact content would actually differ from what was generated last time.
+ */
+function buildOperationFile(tag: string, op: Operation, authRegistry: Map<string, AuthRegistryEntry>): string {
+  const authFns = resolveOperationAuthFns(op, authRegistry);
+  const usesDynamicParams = dynamicParams(op).length > 0;
 
   const header = [
     "import { test, expect } from '@playwright/test';",
-    ...(usesDynamicParams ? ["import { buildUrl } from '../helpers/url';"] : []),
-    ...authImports,
-    "import { expectResponseMatches } from '../helpers/assertSchema';",
+    ...(usesDynamicParams ? ["import { buildUrl } from '../../helpers/url';"] : []),
+    ...authFns.map((fn) => `import { ${fn.functionName} } from '../../helpers/auth/${fn.fileSlug}';`),
+    "import { expectResponseMatches } from '../../helpers/assertSchema';",
     '',
     `test.describe(${jsString(tag)}, () => {`,
     '',
   ];
-  const body = operations.map((op) => renderOperationTest(op, authRegistry)).join('\n\n');
+  const body = renderOperationTest(op, authRegistry);
   const indented = body
     .split('\n')
     .map((l) => (l ? '  ' + l : l))
@@ -169,18 +180,30 @@ export interface BuildOptions {
   skipResponseValidation?: boolean;
 }
 
+export interface OperationFile {
+  /** "METHOD /path" — stable identity for this operation across regenerations. */
+  operationKey: string;
+  relativePath: string;
+  content: string;
+}
+
 export interface BuiltProject {
   projectName: string;
   operationCount: number;
   tagCount: number;
   authSchemeCount: number;
-  fileMap: Record<string, string>;
+  /** Project-level files (package.json, config, helpers, README, auth files) — created once, never overwritten. */
+  scaffoldFiles: Record<string, string>;
+  /** One entry per operation — diffed against the manifest and only rewritten when changed. */
+  operationFiles: OperationFile[];
+  /** Fresh placeholder param values, merged (not replacing) into tests/data/params.ts. */
+  paramsByOperation: Record<string, Record<string, string>>;
 }
 
 /**
- * Builds the file map for a "direct HTTP" Playwright project: tests call the
- * API over HTTP via Playwright's `request` fixture, driven purely by the
- * parsed OpenAPI document. Works for any spec, no hosted UI required.
+ * Builds a "direct HTTP" Playwright project: tests call the API over HTTP via
+ * Playwright's `request` fixture, driven purely by the parsed OpenAPI
+ * document. Works for any spec, no hosted UI required.
  */
 export function buildHttpProject(api: any, options: BuildOptions = {}): BuiltProject {
   const projectName = toSafeProjectName(options.projectName || (api.info && api.info.title) || 'openapi-http-tests');
@@ -196,7 +219,26 @@ export function buildHttpProject(api: any, options: BuildOptions = {}): BuiltPro
   }
   const tagSlugs = [...new Set([...byTag.keys()].map(slugifyTag))];
 
-  const fileMap: Record<string, string> = {
+  const operationFiles: OperationFile[] = [];
+  for (const [tag, ops] of byTag.entries()) {
+    const tagSlug = slugifyTag(tag);
+    const usedSlugs = new Set<string>();
+    for (const op of ops) {
+      const base = slugifyOperationBase(op) || 'operation';
+      let slug = base;
+      let n = 2;
+      while (usedSlugs.has(slug)) slug = `${base}-${n++}`;
+      usedSlugs.add(slug);
+
+      operationFiles.push({
+        operationKey: operationKey(op),
+        relativePath: `tests/spec/${tagSlug}/${slug}.spec.ts`,
+        content: buildOperationFile(tag, op, authRegistry),
+      });
+    }
+  }
+
+  const scaffoldFiles: Record<string, string> = {
     'package.json': templates.packageJson(projectName, tagSlugs),
     'playwright.config.ts': templates.playwrightConfig(baseUrl),
     '.env.sample': templates.envSample({
@@ -209,17 +251,12 @@ export function buildHttpProject(api: any, options: BuildOptions = {}): BuiltPro
   };
 
   for (const { fileSlug, fileContent } of authRegistry.values()) {
-    fileMap[`tests/helpers/auth/${fileSlug}.ts`] = fileContent;
+    scaffoldFiles[`tests/helpers/auth/${fileSlug}.ts`] = fileContent;
   }
 
   const paramsByOperation = buildParamsByOperation(operations);
   if (Object.keys(paramsByOperation).length) {
-    fileMap['tests/data/params.ts'] = renderParamsFile(paramsByOperation);
-    fileMap['tests/helpers/url.ts'] = templates.urlHelperFile();
-  }
-
-  for (const [tag, ops] of byTag.entries()) {
-    fileMap[`tests/spec/${slugifyTag(tag)}.spec.ts`] = buildSpecFile(tag, ops, authRegistry);
+    scaffoldFiles['tests/helpers/url.ts'] = templates.urlHelperFile();
   }
 
   return {
@@ -227,6 +264,8 @@ export function buildHttpProject(api: any, options: BuildOptions = {}): BuiltPro
     operationCount: operations.length,
     tagCount: byTag.size,
     authSchemeCount: authRegistry.size,
-    fileMap,
+    scaffoldFiles,
+    operationFiles,
+    paramsByOperation,
   };
 }

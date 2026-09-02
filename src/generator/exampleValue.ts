@@ -61,6 +61,22 @@ export function exampleFromSchema(schema: any, seen: Set<any> = new Set()): any 
   }
 }
 
+/**
+ * Like exampleFromSchema, but only ever returns a value the spec explicitly
+ * declared (example/examples/default/enum) — never a guessed type-based
+ * fallback. Returns undefined if the spec didn't declare one. Used for
+ * optional query parameters, where "no explicit value" should mean "leave
+ * this out of the request" rather than "guess something to send".
+ */
+export function explicitValueFromSchema(schema: any): any {
+  if (!schema || typeof schema !== 'object') return undefined;
+  if (schema.example !== undefined) return schema.example;
+  if (Array.isArray(schema.examples) && schema.examples.length) return schema.examples[0];
+  if (schema.default !== undefined) return schema.default;
+  if (Array.isArray(schema.enum) && schema.enum.length) return schema.enum[0];
+  return undefined;
+}
+
 /** Returns the top-level keys of an object-shaped example/schema, for shape assertions. */
 export function shapeKeys(example: any): string[] | null {
   if (!example || typeof example !== 'object' || Array.isArray(example)) return null;
