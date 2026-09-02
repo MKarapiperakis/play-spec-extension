@@ -4,6 +4,7 @@
   "description": "Generate a runnable Playwright API test project from an OpenAPI/Swagger spec, directly inside your workspace.",
   "version": "0.1.0",
   "publisher": "playspec",
+  "icon": "resources/icon.png",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -30,8 +31,31 @@
         "title": "PlaySpec: Generate Playwright Tests from This Spec",
         "category": "PlaySpec",
         "icon": "$(play)"
+      },
+      {
+        "command": "playspec.refreshSpecExplorer",
+        "title": "PlaySpec: Refresh Spec Explorer",
+        "category": "PlaySpec",
+        "icon": "$(refresh)"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "playspec",
+          "title": "PlaySpec",
+          "icon": "resources/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "playspec": [
+        {
+          "id": "playspec.specExplorer",
+          "name": "PlaySpec"
+        }
+      ]
+    },
     "menus": {
       "explorer/context": [
         {
@@ -45,6 +69,20 @@
           "command": "playspec.generateFromExplorer",
           "when": "resourceExtname == .json || resourceExtname == .yaml || resourceExtname == .yml",
           "group": "navigation"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "playspec.refreshSpecExplorer",
+          "when": "view == playspec.specExplorer",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "playspec.generateFromExplorer",
+          "when": "view == playspec.specExplorer && viewItem == playspec.specFile",
+          "group": "inline"
         }
       ],
       "commandPalette": [
