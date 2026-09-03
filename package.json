@@ -1,10 +1,19 @@
 {
   "name": "playspec",
-  "displayName": "PlaySpec – OpenAPI to Playwright Tests",
-  "description": "Generate a runnable Playwright API test project from an OpenAPI/Swagger spec, directly inside your workspace.",
+  "displayName": "PlaySpec – Generate Playwright Tests from OpenAPI/Swagger",
+  "description": "Generate Playwright API tests from an OpenAPI/Swagger spec (file or URL), directly inside your workspace — endpoints grouped by tag, sample data, and auth wired up automatically.",
   "version": "0.1.0",
   "publisher": "playspec",
   "icon": "resources/icon.png",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MKarapiperakis/play-spec-extension.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MKarapiperakis/play-spec-extension/issues"
+  },
+  "homepage": "https://github.com/MKarapiperakis/play-spec-extension#readme",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -12,6 +21,22 @@
     "Testing",
     "Other"
   ],
+  "keywords": [
+    "playwright",
+    "openapi",
+    "swagger",
+    "api testing",
+    "generate tests",
+    "test generator",
+    "rest api",
+    "e2e testing",
+    "api automation",
+    "swagger to playwright"
+  ],
+  "galleryBanner": {
+    "color": "#0B1021",
+    "theme": "dark"
+  },
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
@@ -118,6 +143,7 @@
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.9.2",
     "typescript": "^5.4.0"
   },
   "dependencies": {
