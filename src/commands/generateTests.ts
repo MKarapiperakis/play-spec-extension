@@ -168,13 +168,17 @@ export async function generateFromFileCommand(): Promise<void> {
   await runGeneration(specText, vscode.workspace.asRelativePath(uris[0]));
 }
 
-export async function generateFromExplorerCommand(resource?: vscode.Uri): Promise<void> {
+export async function generateFromExplorerCommand(resource?: vscode.Uri | { uri: vscode.Uri }): Promise<void> {
   if (!resource) {
     await generateFromFileCommand();
     return;
   }
-  const specText = await readSpecFromFileUri(resource);
-  await runGeneration(specText, vscode.workspace.asRelativePath(resource));
+  // The real Explorer and editor-title button pass a vscode.Uri, but the
+  // PlaySpec tree view's inline play icon (view/item/context) invokes this
+  // command with the SpecFileNode tree element instead — unwrap its `uri`.
+  const uri = resource instanceof vscode.Uri ? resource : resource.uri;
+  const specText = await readSpecFromFileUri(uri);
+  await runGeneration(specText, vscode.workspace.asRelativePath(uri));
 }
 
 export async function generateFromUrlCommand(): Promise<void> {
