@@ -1,6 +1,13 @@
 import * as vscode from 'vscode';
 import { ValidationResult, Category, Issue } from '../parser/validateSpec';
 
+let extensionUri: vscode.Uri | undefined;
+
+/** Called once from activate() so this module can resolve the extension's own resources (icon). */
+export function initValidationReportPanel(uri: vscode.Uri): void {
+  extensionUri = uri;
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
@@ -54,7 +61,7 @@ function renderEndpoints(endpoints: Record<string, { path: string; summary: stri
     .join('');
 }
 
-function renderReportHtml(result: ValidationResult, sourceLabel: string): string {
+function renderReportHtml(result: ValidationResult, sourceLabel: string, iconSrc: string | null): string {
   const { summary } = result;
   const severityClass = result.severity === 'good' ? 'good' : result.severity === 'medium' ? 'medium' : 'bad';
 
@@ -83,9 +90,11 @@ function renderReportHtml(result: ValidationResult, sourceLabel: string): string
 <meta charset="UTF-8" />
 <style>
   body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); padding: 0 20px 20px; }
-  h1 { font-size: 1.3em; }
+  .app-icon { position: fixed; top: 16px; right: 20px; width: 32px; height: 32px; border-radius: 6px; }
+  .title-row { display: flex; align-items: baseline; gap: 10px; margin: 12px 0 20px; }
+  h1 { font-size: 1.3em; margin: 0; }
   h3 { margin-bottom: 6px; }
-  .source { color: var(--vscode-descriptionForeground); margin-top: -8px; }
+  .source { color: var(--vscode-descriptionForeground); }
   .score-row { display: flex; align-items: center; gap: 16px; margin: 12px 0 20px; }
   .score { font-size: 2em; font-weight: 600; }
   .score.good { color: var(--vscode-testing-iconPassed, #2ea043); }
@@ -124,8 +133,11 @@ function renderReportHtml(result: ValidationResult, sourceLabel: string): string
 </style>
 </head>
 <body>
-  <h1>PlaySpec Validation Report</h1>
-  <p class="source">${escapeHtml(sourceLabel)}</p>
+  ${iconSrc ? `<img class="app-icon" src="${iconSrc}" alt="" />` : ''}
+  <div class="title-row">
+    <h1>PlaySpec Validation Report</h1>
+    <span class="source">| ${escapeHtml(sourceLabel)}</span>
+  </div>
   <div class="score-row">
     <span class="score ${severityClass}">${result.score}</span>
     <span class="pill ${severityClass}">${result.canGenerate ? 'Ready to generate' : 'Has blocking errors'}</span>
@@ -138,11 +150,17 @@ function renderReportHtml(result: ValidationResult, sourceLabel: string): string
 }
 
 export function showValidationReport(result: ValidationResult, sourceLabel: string): void {
+  const resourcesUri = extensionUri ? vscode.Uri.joinPath(extensionUri, 'resources') : undefined;
+  const iconUri = resourcesUri ? vscode.Uri.joinPath(resourcesUri, 'icon-128.png') : undefined;
+
   const panel = vscode.window.createWebviewPanel(
     'playspec.validationReport',
     `PlaySpec Validation: ${sourceLabel}`,
     vscode.ViewColumn.Beside,
-    { enableScripts: false }
+    { enableScripts: false, localResourceRoots: resourcesUri ? [resourcesUri] : undefined }
   );
-  panel.webview.html = renderReportHtml(result, sourceLabel);
+  if (iconUri) panel.iconPath = iconUri;
+
+  const iconSrc = iconUri ? panel.webview.asWebviewUri(iconUri).toString() : null;
+  panel.webview.html = renderReportHtml(result, sourceLabel, iconSrc);
 }

@@ -2,8 +2,11 @@ import * as vscode from 'vscode';
 import { generateFromFileCommand, generateFromUrlCommand, generateFromExplorerCommand } from './commands/generateTests';
 import { validateFromFileCommand, validateFromUrlCommand, validateFromExplorerCommand } from './commands/validateSpecCommands';
 import { SpecExplorerProvider } from './views/specTreeProvider';
+import { initValidationReportPanel } from './views/validationReportPanel';
 
 export function activate(context: vscode.ExtensionContext): void {
+  initValidationReportPanel(context.extensionUri);
+
   context.subscriptions.push(
     vscode.commands.registerCommand('playspec.generateFromFile', generateFromFileCommand),
     vscode.commands.registerCommand('playspec.generateFromUrl', generateFromUrlCommand),

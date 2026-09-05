@@ -17,23 +17,38 @@ self-contained, runnable test project — no separate web tool, no downloading a
 - **Safe to regenerate.** Change one endpoint in the spec and only that endpoint's test file is
   touched — everything else, including your own hand-edits, is left alone. See
   [Regenerating safely](#regenerating-safely).
-- **Three ways to trigger it**: Command Palette, right-click a spec file, or the dedicated PlaySpec
-  panel in the Activity Bar.
+- **Validate a spec before generating** — catches typos and mistakes (a misspelled `in`, a
+  security scheme referenced but never declared, an undeclared path parameter, missing response
+  examples/schemas) in a readable report, without writing any files. See
+  [Validating a spec](#validating-a-spec).
+- **Three ways to trigger generation or validation**: Command Palette, right-click a spec file, or
+  the dedicated PlaySpec panel in the Activity Bar.
 
 ## Quick start
 
-1. Open the folder you want the tests written into.
+1. Open the folder you want the tests written into, then open the **PlaySpec** panel from the
+   Activity Bar (left-hand icon strip):
+
+   <img src="resources/1-open-extension.PNG" width="220" alt="Opening the PlaySpec panel from the Activity Bar" />
+
 2. Trigger generation one of three ways:
    - **Command Palette** (`Ctrl+Shift+P` / `Cmd+Shift+P`) → **PlaySpec: Generate Playwright Tests
      from Spec File...** or **...from Spec URL...**
    - **Right-click** a `.json`/`.yaml`/`.yml` spec file in the Explorer → **PlaySpec: Generate
      Playwright Tests from This Spec** (the same action also appears as a ▶ button in the editor
      title bar when that file is open).
-   - **PlaySpec panel** in the Activity Bar (left-hand icon strip) — lists every spec-looking file
-     already in your workspace; click one to open it, or use its inline ▶ button to generate
-     straight from it. The panel also has quick links for "Generate from URL..." and jumping to
-     PlaySpec's settings.
-3. PlaySpec writes a `playwright-tests/` folder (configurable) at your workspace root.
+   - **PlaySpec panel** — lists every spec-looking file already in your workspace; click one to
+     open it, or use its inline ▶ button to generate straight from it (a ✔ button next to it
+     validates instead — see [Validating a spec](#validating-a-spec)). The panel also has quick
+     links for "Generate from URL...", "Validate Spec File/URL...", and jumping to PlaySpec's
+     settings.
+
+   <img src="resources/4-generate.PNG" width="700" alt="Generating tests from the right-click menu or the inline play button" />
+
+3. PlaySpec writes a `playwright-tests/` folder (configurable) at your workspace root:
+
+   <img src="resources/5-generate-result.PNG" width="220" alt="The generated playwright-tests folder" />
+
 4. Set it up and run it:
    ```bash
    cd playwright-tests
@@ -42,6 +57,12 @@ self-contained, runnable test project — no separate web tool, no downloading a
    cp .env.sample .env   # fill in credentials / base URL
    npm test
    ```
+
+   <img src="resources/6-setup-test-project.PNG" width="620" alt="Following the generated project's own README to install dependencies and configure .env" />
+
+   Individual tests also show up in VS Code's Test Explorer / the Playwright Test extension:
+
+   <img src="resources/7-run-tests.PNG" width="800" alt="A generated test passing in VS Code's Test Explorer" />
 
 ## What gets generated
 
@@ -63,6 +84,34 @@ playwright-tests/
         └── <tag>/
             └── <method>-<path>.spec.ts   # one file per operation
 ```
+
+## Validating a spec
+
+Check a spec for mistakes before generating anything — nothing is written to disk. Trigger it the
+same three ways as generation:
+
+- **Command Palette** → **PlaySpec: Validate Spec File...** or **...Spec URL...**
+- **Right-click** a `.json`/`.yaml`/`.yml` spec file in the Explorer → **PlaySpec: Validate This
+  Spec** (also available as a ✔ button in the editor title bar when that file is open).
+- **PlaySpec panel** → **Validate Spec File...** / **Validate Spec URL...**, or the inline ✔ button
+  next to any file in the auto-discovered spec list.
+
+<img src="resources/2-validate.PNG" width="700" alt="Validating a spec from the right-click menu or the inline check button" />
+
+The result opens as a report with an overall score and a pass/warning/error breakdown by category:
+
+<img src="resources/3-validate-result.PNG" width="620" alt="The PlaySpec Validation Report webview" />
+
+| Category | Catches |
+|---|---|
+| Schema structure | Malformed OpenAPI/Swagger (e.g. a misspelled field like `in` or `schema`) — reported against the actual path/method/parameter it belongs to, not a raw JSON pointer. |
+| Security definitions | A `security` requirement naming a scheme (e.g. a typo'd `bearerAuthf`) that was never declared under `components.securitySchemes`. |
+| Undeclared path parameters | A `{name}` in the path template with no matching `in: path` parameter — this one *does* block generation, since the resulting test can never pass. |
+| Missing response examples | Operations with no response `example`/`schema` to assert against — the generated test would only check the HTTP status code. |
+| Generation readiness | No base URL (`servers`/`host`) declared, operations missing a `summary`, or a tag not listed in the spec's top-level `tags` catalog. |
+
+Only "Undeclared path parameters" and outright schema-structure errors block generation; everything
+else is a warning you can safely generate through if you choose to.
 
 ## Editing test data
 

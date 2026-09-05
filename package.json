@@ -2,7 +2,7 @@
   "name": "playspec",
   "displayName": "PlaySpec – Generate Playwright Tests from OpenAPI/Swagger",
   "description": "Generate Playwright API tests from an OpenAPI/Swagger spec (file or URL), directly inside your workspace — endpoints grouped by tag, sample data, and auth wired up automatically.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "playspec",
   "icon": "resources/icon.png",
   "license": "MIT",

@@ -8,6 +8,17 @@ import { isAssertableExample, exampleFromSchema } from '../generator/exampleValu
 const ERROR_WEIGHT = 30;
 const WARNING_WEIGHT = 10;
 
+// Each category (schema structure, security, response examples, path
+// params, readiness — 5 total, see buildCategories) can cost at most this
+// many points, no matter how many issues it contains. Without this, a single
+// systemic mistake that happens to repeat once per operation (e.g. "no
+// response example" on every one of 30 endpoints) racks up 30 separate -10s
+// and wipes the score on its own, even though it's really one mistake
+// pattern, not thirty independent ones. Capping keeps a repeated issue from
+// dominating, while a spec with problems spread across every category can
+// still land at 0 (5 × 20 = 100).
+const CATEGORY_DEDUCTION_CAP = 20;
+
 // The same set of methods the HTTP generator actually turns into tests
 // (src/generator/httpProject/build.ts's SUPPORTED_METHODS) — options/head
 // operations, though listOperations() picks them up too, are left out of the
@@ -82,8 +93,29 @@ function decycleSchema(value: any, seen: Set<any> = new Set(), depth = 0): any {
   return result;
 }
 
-function scoreFor(errors: Issue[], warnings: Issue[]): number {
-  return Math.max(0, 100 - errors.length * ERROR_WEIGHT - warnings.length * WARNING_WEIGHT);
+function deductionFor(issues: Issue[]): number {
+  const errors = issues.filter((i) => i.severity === 'error').length;
+  const warnings = issues.filter((i) => i.severity === 'warning').length;
+  return Math.min(errors * ERROR_WEIGHT + warnings * WARNING_WEIGHT, CATEGORY_DEDUCTION_CAP);
+}
+
+// When categories are available, deduction is capped per-category (see
+// CATEGORY_DEDUCTION_CAP) so one repeated issue can't wipe the score alone.
+// The categories-less fallback (a spec that failed to parse/dereference at
+// all, before any category-level checks could run) has no per-category
+// grouping to work with, so it applies the same cap to the flat error/warning
+// list as a single bucket — rare in practice, since that path usually
+// produces just one or two document-level errors anyway.
+function scoreFor(errors: Issue[], warnings: Issue[], categories: Category[] | null): number {
+  if (categories && categories.length) {
+    const totalDeduction = categories.reduce((sum, cat) => sum + deductionFor(cat.issues), 0);
+    return Math.max(0, 100 - totalDeduction);
+  }
+  const asIssues: Issue[] = [
+    ...errors.map((e) => ({ ...e, severity: 'error' as const })),
+    ...warnings.map((w) => ({ ...w, severity: 'warning' as const })),
+  ];
+  return Math.max(0, 100 - deductionFor(asIssues));
 }
 
 function severityFor(errors: any[], warnings: any[]): 'good' | 'medium' | 'bad' {
@@ -107,14 +139,15 @@ function summarize(
   warnings: { message: string; path: string | null }[],
   extra?: { canGenerate?: boolean; categories?: Category[]; summary?: ValidationSummary }
 ): ValidationResult {
+  const categories = (extra && extra.categories) || null;
   return {
     valid: errors.length === 0,
     canGenerate: !!(extra && extra.canGenerate),
     severity: severityFor(errors, warnings),
-    score: scoreFor(errors as Issue[], warnings as Issue[]),
+    score: scoreFor(errors as Issue[], warnings as Issue[], categories),
     errors,
     warnings,
-    categories: (extra && extra.categories) || null,
+    categories,
     summary: (extra && extra.summary) || null,
   };
 }
