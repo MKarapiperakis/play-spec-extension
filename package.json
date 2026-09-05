@@ -58,6 +58,22 @@
         "icon": "$(play)"
       },
       {
+        "command": "playspec.validateFromFile",
+        "title": "PlaySpec: Validate Spec File...",
+        "category": "PlaySpec"
+      },
+      {
+        "command": "playspec.validateFromUrl",
+        "title": "PlaySpec: Validate Spec URL...",
+        "category": "PlaySpec"
+      },
+      {
+        "command": "playspec.validateFromExplorer",
+        "title": "PlaySpec: Validate This Spec",
+        "category": "PlaySpec",
+        "icon": "$(check)"
+      },
+      {
         "command": "playspec.refreshSpecExplorer",
         "title": "PlaySpec: Refresh Spec Explorer",
         "category": "PlaySpec",
@@ -87,11 +103,21 @@
           "command": "playspec.generateFromExplorer",
           "when": "resourceExtname == .json || resourceExtname == .yaml || resourceExtname == .yml",
           "group": "playspec"
+        },
+        {
+          "command": "playspec.validateFromExplorer",
+          "when": "resourceExtname == .json || resourceExtname == .yaml || resourceExtname == .yml",
+          "group": "playspec"
         }
       ],
       "editor/title": [
         {
           "command": "playspec.generateFromExplorer",
+          "when": "resourceExtname == .json || resourceExtname == .yaml || resourceExtname == .yml",
+          "group": "navigation"
+        },
+        {
+          "command": "playspec.validateFromExplorer",
           "when": "resourceExtname == .json || resourceExtname == .yaml || resourceExtname == .yml",
           "group": "navigation"
         }
@@ -107,12 +133,21 @@
         {
           "command": "playspec.generateFromExplorer",
           "when": "view == playspec.specExplorer && viewItem == playspec.specFile",
-          "group": "inline"
+          "group": "inline@1"
+        },
+        {
+          "command": "playspec.validateFromExplorer",
+          "when": "view == playspec.specExplorer && viewItem == playspec.specFile",
+          "group": "inline@2"
         }
       ],
       "commandPalette": [
         {
           "command": "playspec.generateFromExplorer",
+          "when": "false"
+        },
+        {
+          "command": "playspec.validateFromExplorer",
           "when": "false"
         }
       ]

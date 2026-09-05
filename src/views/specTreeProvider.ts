@@ -63,7 +63,7 @@ export class SpecExplorerProvider implements vscode.TreeDataProvider<PlaySpecNod
         const item = new vscode.TreeItem(node.relativePath, vscode.TreeItemCollapsibleState.None);
         item.resourceUri = node.uri; // lets VS Code show the file-type icon from the active icon theme
         item.contextValue = 'playspec.specFile';
-        item.tooltip = `${node.relativePath}\nClick to open, or use the play button to generate Playwright tests from it.`;
+        item.tooltip = `${node.relativePath}\nClick to open, or use the inline buttons to generate Playwright tests or validate it.`;
         item.command = { command: 'vscode.open', title: 'Open Spec File', arguments: [node.uri] };
         return item;
       }
@@ -80,6 +80,8 @@ export class SpecExplorerProvider implements vscode.TreeDataProvider<PlaySpecNod
       return [
         new ActionNode('Generate from Spec File...', 'folder-opened', 'playspec.generateFromFile'),
         new ActionNode('Generate from Spec URL...', 'link', 'playspec.generateFromUrl'),
+        new ActionNode('Validate Spec File...', 'check', 'playspec.validateFromFile'),
+        new ActionNode('Validate Spec URL...', 'cloud', 'playspec.validateFromUrl'),
         new ActionNode('Open PlaySpec Settings', 'gear', 'workbench.action.openSettings', ['@ext:playspec.playspec']),
         new SpecFilesGroupNode(),
       ];

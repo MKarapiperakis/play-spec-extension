@@ -1,12 +1,16 @@
 import * as vscode from 'vscode';
 import { generateFromFileCommand, generateFromUrlCommand, generateFromExplorerCommand } from './commands/generateTests';
+import { validateFromFileCommand, validateFromUrlCommand, validateFromExplorerCommand } from './commands/validateSpecCommands';
 import { SpecExplorerProvider } from './views/specTreeProvider';
 
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('playspec.generateFromFile', generateFromFileCommand),
     vscode.commands.registerCommand('playspec.generateFromUrl', generateFromUrlCommand),
-    vscode.commands.registerCommand('playspec.generateFromExplorer', generateFromExplorerCommand)
+    vscode.commands.registerCommand('playspec.generateFromExplorer', generateFromExplorerCommand),
+    vscode.commands.registerCommand('playspec.validateFromFile', validateFromFileCommand),
+    vscode.commands.registerCommand('playspec.validateFromUrl', validateFromUrlCommand),
+    vscode.commands.registerCommand('playspec.validateFromExplorer', validateFromExplorerCommand)
   );
 
   const specExplorer = new SpecExplorerProvider();
