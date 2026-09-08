@@ -327,8 +327,10 @@ an updated spec to refresh this project. This is designed to be safe to do repea
   never touched.
 - \`tests/data/params.ts\` is merged, not replaced — values you've already filled in are kept; only
   genuinely new parameters get placeholder entries added.
-- \`package.json\` only ever gets scripts/dependencies *added*, never removed or overwritten, if you've
-  hand-added your own.
+- \`package.json\` gets scripts/dependencies *added* if missing, and an existing PlaySpec-managed
+  value (e.g. a dependency version) is bumped to a newer template's value only if you haven't
+  changed it since PlaySpec last wrote it — anything you've hand-added or hand-edited yourself is
+  never touched.
 - \`playwright.config.ts\`, \`.env.sample\`, \`README.md\`, and the \`tests/helpers/\` files are only
   overwritten with a newer PlaySpec template if the copy on disk still matches, byte for byte, what
   PlaySpec itself last wrote there — tracked the same way as the per-operation hash above. The moment

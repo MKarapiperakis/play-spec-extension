@@ -148,6 +148,16 @@ async function runGeneration(specText: string, sourceLabel: string): Promise<voi
       `${summary.scaffoldOutdated.length} scaffold file(s) have a newer PlaySpec template available but weren't updated because they've changed since PlaySpec last wrote them: ${formatFileList(summary.scaffoldOutdated)}. Check them manually, or delete one and regenerate to get the latest version.`
     );
   }
+  if (summary.packageJsonUpdated.length) {
+    warnings.push(
+      `updated ${summary.packageJsonUpdated.length} package.json value(s) to the latest PlaySpec template: ${formatFileList(summary.packageJsonUpdated)}.`
+    );
+  }
+  if (summary.packageJsonOutdated.length) {
+    warnings.push(
+      `package.json: ${summary.packageJsonOutdated.length} value(s) have a newer PlaySpec template available but weren't updated because they've changed since PlaySpec last wrote them: ${formatFileList(summary.packageJsonOutdated)}.`
+    );
+  }
   if (summary.operationsOrphaned.length) {
     warnings.push(
       `${summary.operationsOrphaned.length} test file(s) no longer match any operation in the spec (left in place, not deleted): ${formatFileList(summary.operationsOrphaned)}.`

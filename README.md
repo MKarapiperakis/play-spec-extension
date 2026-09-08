@@ -134,7 +134,11 @@ repeatedly:
   test is never touched. **Commit this manifest file to version control** so this stays true for
   everyone working on the project.
 - `tests/data/params.ts` is merged, not replaced — values you've filled in are kept.
-- `package.json` only ever gets scripts/dependencies *added*, never removed.
+- `package.json` gets scripts/dependencies *added* if missing, and an existing PlaySpec-managed
+  value (e.g. a dependency version) is bumped to a newer template's value only if you haven't
+  changed it since PlaySpec last wrote it — the same untouched-since-last-write rule as everything
+  else below, just per script/dependency key instead of per file, since you're expected to add your
+  own scripts/deps here freely.
 - `playwright.config.ts`, `.env.sample`, `README.md`, and the helper files are only overwritten with
   a newer PlaySpec template if the copy on disk still matches, byte for byte, what PlaySpec itself
   last wrote there (tracked the same way as the per-operation hash above) — so an extension update

@@ -23,10 +23,32 @@ export interface Manifest {
    * Absent on a manifest written before this existed; treated as `{}`.
    */
   scaffoldHashes: Record<string, string>;
+  /**
+   * The value PlaySpec itself last wrote for each package.json script/dependency
+   * key it manages, by section — e.g. packageJsonValues.dependencies.dotenv.
+   * package.json can't use a single whole-file hash like scaffoldHashes above,
+   * since it's a merge target the user is expected to freely add their own
+   * scripts/deps to (which would make a whole-file hash never match again).
+   * Tracking per-key instead means a value the user hasn't touched since
+   * PlaySpec wrote it (e.g. a dependency version bump in a newer PlaySpec
+   * release) can still be picked up on regeneration, while anything the user
+   * changed — or added themselves — is left alone. Absent on a manifest
+   * written before this existed; treated as empty.
+   */
+  packageJsonValues: {
+    scripts: Record<string, string>;
+    dependencies: Record<string, string>;
+    devDependencies: Record<string, string>;
+  };
 }
 
 export function emptyManifest(): Manifest {
-  return { version: 1, operations: {}, scaffoldHashes: {} };
+  return {
+    version: 1,
+    operations: {},
+    scaffoldHashes: {},
+    packageJsonValues: { scripts: {}, dependencies: {}, devDependencies: {} },
+  };
 }
 
 /**

@@ -13,6 +13,10 @@ export interface WriteSummary {
   scaffoldUpdated: string[];
   /** Scaffold file(s) whose template changed but were left alone — either hand-edited, or from before scaffold hash-tracking existed. */
   scaffoldOutdated: string[];
+  /** package.json script/dependency keys (e.g. "dependencies.dotenv") bumped to a newer PlaySpec-generated value because the on-disk value was untouched since PlaySpec last wrote it. */
+  packageJsonUpdated: string[];
+  /** package.json script/dependency keys whose PlaySpec-generated value changed but were left alone — either hand-edited, or from before this was tracked. */
+  packageJsonOutdated: string[];
   operationsCreated: string[];
   operationsUpdated: string[];
   operationsUnchanged: number;
@@ -31,6 +35,8 @@ function emptySummary(): WriteSummary {
     scaffoldCreated: [],
     scaffoldUpdated: [],
     scaffoldOutdated: [],
+    packageJsonUpdated: [],
+    packageJsonOutdated: [],
     operationsCreated: [],
     operationsUpdated: [],
     operationsUnchanged: 0,
@@ -49,10 +55,19 @@ async function readManifest(rootUri: vscode.Uri): Promise<Manifest> {
   try {
     const parsed = JSON.parse(text);
     if (parsed && typeof parsed === 'object' && parsed.operations && typeof parsed.operations === 'object') {
-      // scaffoldHashes didn't exist in manifests written before it was added —
-      // treat a missing one as "no scaffold file has ever been hash-tracked",
-      // not as a parse failure.
+      // scaffoldHashes/packageJsonValues didn't exist in manifests written
+      // before they were added — treat a missing one as "nothing tracked
+      // yet", not as a parse failure.
       if (!parsed.scaffoldHashes || typeof parsed.scaffoldHashes !== 'object') parsed.scaffoldHashes = {};
+      if (!parsed.packageJsonValues || typeof parsed.packageJsonValues !== 'object') {
+        parsed.packageJsonValues = { scripts: {}, dependencies: {}, devDependencies: {} };
+      } else {
+        for (const section of ['scripts', 'dependencies', 'devDependencies'] as const) {
+          if (!parsed.packageJsonValues[section] || typeof parsed.packageJsonValues[section] !== 'object') {
+            parsed.packageJsonValues[section] = {};
+          }
+        }
+      }
       return parsed as Manifest;
     }
   } catch {
@@ -67,14 +82,36 @@ async function writeManifest(rootUri: vscode.Uri, manifest: Manifest): Promise<v
   await writeTextFile(joinPath(rootUri, MANIFEST_RELATIVE_PATH), JSON.stringify(manifest, null, 2) + '\n');
 }
 
+type PackageJsonSection = 'scripts' | 'dependencies' | 'devDependencies';
+const PACKAGE_JSON_SECTIONS: PackageJsonSection[] = ['scripts', 'dependencies', 'devDependencies'];
+
+interface PackageJsonMergeResult {
+  /** New file content, or undefined if nothing on disk needs to change. */
+  content: string | undefined;
+  /** "section.key" entries bumped to a newer PlaySpec value because the on-disk value matched what PlaySpec last wrote. */
+  updatedKeys: string[];
+  /** "section.key" entries whose PlaySpec-generated value changed but were left alone (hand-edited, or no recorded baseline). */
+  outdatedKeys: string[];
+  /** The value now on disk for every PlaySpec-managed key, to persist as the new baseline. */
+  values: Manifest['packageJsonValues'];
+}
+
 /**
- * Additive-only merge for package.json: adds any script/dependency PlaySpec
- * generates that's missing, but never touches or removes anything already
- * there, so hand-added scripts or extra dependencies always survive.
- * Returns undefined if nothing needs to change, or the file can't be parsed
- * as JSON (left untouched in that case).
+ * Merges package.json: a script/dependency key PlaySpec doesn't generate at
+ * all, or one the user added themselves, is never touched. For a key
+ * PlaySpec *does* generate, its on-disk value is bumped to match a newer
+ * template only if it still equals the value PlaySpec itself last wrote
+ * there (per `recordedValues`, the manifest's running record of that) — the
+ * same "only touch what we know is untouched" rule as the per-operation and
+ * scaffold-file hash tracking, just at key granularity here since users are
+ * expected to freely add their own scripts/deps alongside PlaySpec's.
+ * Returns undefined if the file can't be parsed as JSON (left untouched).
  */
-function mergePackageJson(existingText: string, freshText: string): string | undefined {
+function mergePackageJson(
+  existingText: string,
+  freshText: string,
+  recordedValues: Manifest['packageJsonValues']
+): PackageJsonMergeResult | undefined {
   let existing: any;
   let fresh: any;
   try {
@@ -85,23 +122,48 @@ function mergePackageJson(existingText: string, freshText: string): string | und
   }
 
   let changed = false;
-  const mergeInto = (key: string) => {
-    const merged = { ...(existing[key] || {}) };
-    for (const [k, v] of Object.entries(fresh[key] || {})) {
-      if (!(k in merged)) {
-        merged[k] = v;
+  const updatedKeys: string[] = [];
+  const outdatedKeys: string[] = [];
+  const values: Manifest['packageJsonValues'] = { scripts: {}, dependencies: {}, devDependencies: {} };
+
+  const mergeSection = (section: PackageJsonSection) => {
+    const merged = { ...(existing[section] || {}) };
+    const freshSection = fresh[section] || {};
+    const recordedSection = recordedValues[section] || {};
+
+    for (const [key, freshValue] of Object.entries(freshSection) as [string, string][]) {
+      const existingValue = merged[key];
+      if (existingValue === undefined) {
+        merged[key] = freshValue;
         changed = true;
+        values[section][key] = freshValue;
+      } else if (existingValue === freshValue) {
+        values[section][key] = freshValue;
+      } else if (recordedSection[key] === existingValue) {
+        // Untouched since PlaySpec last wrote it — safe to bump.
+        merged[key] = freshValue;
+        changed = true;
+        updatedKeys.push(`${section}.${key}`);
+        values[section][key] = freshValue;
+      } else {
+        // Hand-edited, or predates this being tracked — never guess, leave it.
+        outdatedKeys.push(`${section}.${key}`);
+        values[section][key] = existingValue;
       }
     }
     return merged;
   };
 
-  const scripts = mergeInto('scripts');
-  const devDependencies = mergeInto('devDependencies');
-  const dependencies = mergeInto('dependencies');
-  if (!changed) return undefined;
+  const scripts = mergeSection('scripts');
+  const devDependencies = mergeSection('devDependencies');
+  const dependencies = mergeSection('dependencies');
 
-  return JSON.stringify({ ...existing, scripts, devDependencies, dependencies }, null, 2) + '\n';
+  return {
+    content: changed ? JSON.stringify({ ...existing, scripts, devDependencies, dependencies }, null, 2) + '\n' : undefined,
+    updatedKeys,
+    outdatedKeys,
+    values,
+  };
 }
 
 interface ParamsMergeResult {
@@ -204,17 +266,37 @@ export async function writeProject(rootUri: vscode.Uri, built: BuiltProject): Pr
     if (!(await fileExists(uri))) {
       await writeTextFile(uri, freshContent);
       summary.scaffoldCreated.push(relativePath);
-      newManifest.scaffoldHashes[relativePath] = hashContent(freshContent);
+      if (relativePath === 'package.json') {
+        // Seed the per-key baseline from what was actually written, not just
+        // a whole-file hash (unused for package.json — see mergePackageJson)
+        // — otherwise the very next regeneration would see no recorded value
+        // for any key and treat them all as having no known baseline, even
+        // though the user hasn't touched the file yet.
+        const fresh = JSON.parse(freshContent);
+        for (const section of PACKAGE_JSON_SECTIONS) {
+          newManifest.packageJsonValues[section] = { ...(fresh[section] || {}) };
+        }
+      } else {
+        newManifest.scaffoldHashes[relativePath] = hashContent(freshContent);
+      }
       continue;
     }
 
     if (relativePath === 'package.json') {
-      // Never template-overwritten — always additive, regardless of hash
-      // tracking, since users are expected to add their own scripts/deps.
+      // Merged key-by-key (see mergePackageJson) rather than whole-file
+      // hash-gated like the scaffold files below, since users are expected
+      // to freely add their own scripts/deps alongside PlaySpec's here.
       const existingText = await readTextFile(uri);
-      if (existingText) {
-        const merged = mergePackageJson(existingText, freshContent);
-        if (merged) await writeTextFile(uri, merged);
+      const result = existingText ? mergePackageJson(existingText, freshContent, manifest.packageJsonValues) : undefined;
+      if (result) {
+        if (result.content) await writeTextFile(uri, result.content);
+        summary.packageJsonUpdated.push(...result.updatedKeys);
+        summary.packageJsonOutdated.push(...result.outdatedKeys);
+        newManifest.packageJsonValues = result.values;
+      } else {
+        // Missing/unparseable existing file — nothing to safely merge;
+        // carry the prior baseline forward unchanged rather than lose it.
+        newManifest.packageJsonValues = manifest.packageJsonValues;
       }
       continue;
     }
