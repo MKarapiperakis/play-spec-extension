@@ -50,7 +50,12 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: 'html',
+  // 'html' alone only writes the report at the end of the run — unlike
+  // list/line/dot, it never streams a test's console.log/stdout to the
+  // terminal while tests are running, which makes ENABLE_LOGS look like it's
+  // silently doing nothing. 'list' restores that live output; 'html' report
+  // generation is unaffected, still viewable via \`npm run report\`.
+  reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     // Always exactly one trailing slash, whether this came from BASE_URL or
     // the default below — request paths in tests/spec are relative (no
@@ -325,7 +330,10 @@ an updated spec to refresh this project. This is designed to be safe to do repea
 - \`package.json\` only ever gets scripts/dependencies *added*, never removed or overwritten, if you've
   hand-added your own.
 - \`playwright.config.ts\`, \`.env.sample\`, \`README.md\`, and the \`tests/helpers/\` files are only
-  created the first time — never touched again, so your customizations to them are safe.
+  overwritten with a newer PlaySpec template if the copy on disk still matches, byte for byte, what
+  PlaySpec itself last wrote there — tracked the same way as the per-operation hash above. The moment
+  you edit one of these, PlaySpec stops touching it and instead tells you it's out of date, so an
+  extension update can improve these templates without silently discarding your customizations.
 - If an operation is removed from the spec, its test file is left in place (not deleted) — PlaySpec
   will tell you which file(s) no longer match anything, so you can remove them yourself if you want to.
 `;

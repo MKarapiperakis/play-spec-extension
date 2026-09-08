@@ -135,8 +135,12 @@ repeatedly:
   everyone working on the project.
 - `tests/data/params.ts` is merged, not replaced — values you've filled in are kept.
 - `package.json` only ever gets scripts/dependencies *added*, never removed.
-- `playwright.config.ts`, `.env.sample`, and the helper files are created once and never touched
-  again.
+- `playwright.config.ts`, `.env.sample`, `README.md`, and the helper files are only overwritten with
+  a newer PlaySpec template if the copy on disk still matches, byte for byte, what PlaySpec itself
+  last wrote there (tracked the same way as the per-operation hash above) — so an extension update
+  can improve these templates without silently discarding your customizations. The moment you edit
+  one, PlaySpec stops touching it and flags it as outdated instead (see the notification after
+  generating).
 - If an operation is removed from the spec, its test file is left in place (not deleted) — you'll
   get a notification listing which file(s) no longer match anything, so you can decide.
 

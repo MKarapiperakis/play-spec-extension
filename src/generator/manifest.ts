@@ -11,10 +11,22 @@ export interface Manifest {
   version: 1;
   /** Keyed by operationKey ("METHOD /path"). */
   operations: Record<string, ManifestEntry>;
+  /**
+   * sha256 of each "written once" scaffold file (playwright.config.ts,
+   * .env.sample, README.md, tests/helpers/*) as of the last time PlaySpec
+   * itself wrote it — keyed by its relative path. Lets a later PlaySpec
+   * version pick up an improved template on regeneration (e.g. a
+   * playwright.config.ts bugfix) when the file on disk still matches what
+   * PlaySpec last wrote, while leaving it alone the moment it doesn't (the
+   * user edited it) — same content-hash-gated approach as `operations`
+   * above, just applied to scaffold files instead of per-operation ones.
+   * Absent on a manifest written before this existed; treated as `{}`.
+   */
+  scaffoldHashes: Record<string, string>;
 }
 
 export function emptyManifest(): Manifest {
-  return { version: 1, operations: {} };
+  return { version: 1, operations: {}, scaffoldHashes: {} };
 }
 
 /**

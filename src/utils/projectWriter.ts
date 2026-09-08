@@ -9,6 +9,10 @@ const PARAMS_RELATIVE_PATH = 'tests/data/params.ts';
 
 export interface WriteSummary {
   scaffoldCreated: string[];
+  /** Scaffold file(s) rewritten to a newer PlaySpec template because the on-disk copy was untouched since PlaySpec last wrote it. */
+  scaffoldUpdated: string[];
+  /** Scaffold file(s) whose template changed but were left alone — either hand-edited, or from before scaffold hash-tracking existed. */
+  scaffoldOutdated: string[];
   operationsCreated: string[];
   operationsUpdated: string[];
   operationsUnchanged: number;
@@ -25,6 +29,8 @@ export interface WriteSummary {
 function emptySummary(): WriteSummary {
   return {
     scaffoldCreated: [],
+    scaffoldUpdated: [],
+    scaffoldOutdated: [],
     operationsCreated: [],
     operationsUpdated: [],
     operationsUnchanged: 0,
@@ -43,6 +49,10 @@ async function readManifest(rootUri: vscode.Uri): Promise<Manifest> {
   try {
     const parsed = JSON.parse(text);
     if (parsed && typeof parsed === 'object' && parsed.operations && typeof parsed.operations === 'object') {
+      // scaffoldHashes didn't exist in manifests written before it was added —
+      // treat a missing one as "no scaffold file has ever been hash-tracked",
+      // not as a parse failure.
+      if (!parsed.scaffoldHashes || typeof parsed.scaffoldHashes !== 'object') parsed.scaffoldHashes = {};
       return parsed as Manifest;
     }
   } catch {
@@ -168,8 +178,14 @@ function mergeParamsFile(existingText: string | undefined, fresh: Record<string,
 /**
  * Writes a generated project into `rootUri`, safe to call repeatedly against
  * an already-generated project:
- *  - scaffold files are only created if missing (package.json instead gets
- *    an additive merge so hand-added scripts/deps survive);
+ *  - package.json instead gets an additive merge so hand-added scripts/deps
+ *    survive;
+ *  - every other scaffold file (playwright.config.ts, .env.sample,
+ *    README.md, tests/helpers/*) is created if missing, and on later runs is
+ *    only overwritten with an updated template if the copy on disk still
+ *    matches what PlaySpec itself wrote last time (tracked via a
+ *    content-hash manifest, same idea as the per-operation one below) — a
+ *    hand-edited scaffold file is never touched, just flagged as outdated;
  *  - each operation's test file is only rewritten if its freshly-generated
  *    content actually differs from last time (tracked via a content-hash
  *    manifest) — an operation nothing changed about never has its file
@@ -179,26 +195,52 @@ function mergeParamsFile(existingText: string | undefined, fresh: Record<string,
  */
 export async function writeProject(rootUri: vscode.Uri, built: BuiltProject): Promise<WriteSummary> {
   const summary = emptySummary();
+  const manifest = await readManifest(rootUri);
+  const newManifest = emptyManifest();
 
   for (const [relativePath, freshContent] of Object.entries(built.scaffoldFiles)) {
     const uri = joinPath(rootUri, relativePath);
+
     if (!(await fileExists(uri))) {
       await writeTextFile(uri, freshContent);
       summary.scaffoldCreated.push(relativePath);
+      newManifest.scaffoldHashes[relativePath] = hashContent(freshContent);
       continue;
     }
+
     if (relativePath === 'package.json') {
+      // Never template-overwritten — always additive, regardless of hash
+      // tracking, since users are expected to add their own scripts/deps.
       const existingText = await readTextFile(uri);
       if (existingText) {
         const merged = mergePackageJson(existingText, freshContent);
         if (merged) await writeTextFile(uri, merged);
       }
+      continue;
     }
-    // Every other scaffold file: already exists, left exactly as-is.
+
+    const existingText = (await readTextFile(uri)) ?? '';
+    const existingHash = hashContent(existingText);
+    const freshHash = hashContent(freshContent);
+    const recordedHash = manifest.scaffoldHashes[relativePath];
+
+    if (freshHash === existingHash) {
+      // Already matches the current template — nothing to do either way.
+      newManifest.scaffoldHashes[relativePath] = freshHash;
+    } else if (recordedHash === existingHash) {
+      // Untouched since PlaySpec last wrote it — safe to pick up the new template.
+      await writeTextFile(uri, freshContent);
+      summary.scaffoldUpdated.push(relativePath);
+      newManifest.scaffoldHashes[relativePath] = freshHash;
+    } else {
+      // Either hand-edited, or from before scaffold hash-tracking existed
+      // (no recorded baseline to compare against) — never guess, just leave
+      // it and let the caller decide whether to update it by hand.
+      summary.scaffoldOutdated.push(relativePath);
+      newManifest.scaffoldHashes[relativePath] = existingHash;
+    }
   }
 
-  const manifest = await readManifest(rootUri);
-  const newManifest = emptyManifest();
   const seenKeys = new Set<string>();
 
   for (const opFile of built.operationFiles) {
