@@ -81,6 +81,7 @@ function resolveOperationAuthFns(op: Operation, authRegistry: Map<string, AuthRe
 function renderOperationTest(op: Operation, authRegistry: Map<string, AuthRegistryEntry>): string {
   const urlExpr = urlExprFor(op);
   const title = `${op.method.toUpperCase()} ${op.path} — ${op.summary}`;
+  const logLabel = `${op.method.toUpperCase()} ${op.path}`;
   const successCodes = op.successResponses.map((r) => r.status);
 
   const bestShapeResponse = op.successResponses.find(
@@ -89,26 +90,55 @@ function renderOperationTest(op: Operation, authRegistry: Map<string, AuthRegist
   const expectedShape = bestShapeResponse ? bestShapeResponse.example ?? exampleFromSchema(bestShapeResponse.schema) : null;
 
   const authFns = resolveOperationAuthFns(op, authRegistry);
-  const requestOptions: string[] = [];
-  if (authFns.length) {
-    requestOptions.push(`headers: { ${authFns.map((fn) => `...${fn.functionName}()`).join(', ')} }`);
+  const hasHeaders = authFns.length > 0;
+  const hasBody = Boolean(op.requestBodySchema);
+
+  const lines = [
+    `test(${jsString(title)}, async ({ request }) => {`,
+    `  const url = ${urlExpr};`,
+  ];
+
+  if (hasHeaders) {
+    lines.push(`  const headers = { ${authFns.map((fn) => `...${fn.functionName}()`).join(', ')} };`);
   }
-  if (op.requestBodySchema) {
+
+  if (hasBody) {
     const body = exampleFromSchema(op.requestBodySchema);
-    requestOptions.push(`data: ${JSON.stringify(body, null, 2).split('\n').join('\n    ')}`);
+    lines.push(`  const requestBody = ${JSON.stringify(body, null, 2).split('\n').join('\n  ')};`);
+  }
+
+  lines.push(
+    '',
+    "  if (process.env.ENABLE_LOGS === 'true') {",
+    `    console.log(${jsString(`[PlaySpec] ${logLabel}`)});`,
+    "    console.log('  URL:', url);"
+  );
+  if (hasHeaders) {
+    lines.push("    console.log('  Headers:', JSON.stringify(headers, null, 2));");
+  }
+  if (hasBody) {
+    lines.push("    console.log('  Body:', JSON.stringify(requestBody, null, 2));");
+  }
+  lines.push('  }', '');
+
+  const requestOptions: string[] = [];
+  if (hasHeaders) {
+    requestOptions.push('headers');
+  }
+  if (hasBody) {
+    requestOptions.push('data: requestBody');
   }
 
   const optionsBlock = requestOptions.length ? `, {\n    ${requestOptions.join(',\n    ')},\n  }` : '';
   const fetchOptions = [`method: ${jsString(op.method.toUpperCase())}`, ...requestOptions];
   const methodCall = DIRECT_METHODS.has(op.method)
-    ? `request.${op.method}(${urlExpr}${optionsBlock})`
-    : `request.fetch(${urlExpr}, {\n    ${fetchOptions.join(',\n    ')},\n  })`;
+    ? `request.${op.method}(url${optionsBlock})`
+    : `request.fetch(url, {\n    ${fetchOptions.join(',\n    ')},\n  })`;
 
-  const lines = [
-    `test(${jsString(title)}, async ({ request }) => {`,
+  lines.push(
     `  const response = await ${methodCall};`,
     `  expect(${JSON.stringify(successCodes)}).toContain(response.status());`,
-  ];
+  );
 
   if (isAssertableExample(expectedShape)) {
     lines.push(
@@ -178,6 +208,7 @@ export interface BuildOptions {
   projectName?: string;
   baseUrl?: string;
   skipResponseValidation?: boolean;
+  enableLogs?: boolean;
 }
 
 export interface OperationFile {
@@ -245,6 +276,7 @@ export function buildHttpProject(api: any, options: BuildOptions = {}): BuiltPro
       authSchemes: [...authRegistry.values()],
       baseUrl,
       skipResponseValidation: Boolean(options.skipResponseValidation),
+      enableLogs: Boolean(options.enableLogs),
     }),
     'README.md': templates.readme(projectName, operations.length, tagSlugs),
     'tests/helpers/assertSchema.ts': templates.assertSchemaHelper(),

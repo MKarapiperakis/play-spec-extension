@@ -84,12 +84,14 @@ async function runGeneration(specText: string, sourceLabel: string): Promise<voi
       const outputUri = await resolveOutputFolder(workspaceFolder);
       if (!outputUri) return undefined;
 
-      const skipResponseValidation = vscode.workspace.getConfiguration('playspec').get<boolean>('skipResponseValidation', false);
+      const config = vscode.workspace.getConfiguration('playspec');
+      const skipResponseValidation = config.get<boolean>('skipResponseValidation', false);
+      const enableLogs = config.get<boolean>('enableRequestLogs', false);
 
       progress.report({ message: 'Generating test files...' });
       let built;
       try {
-        built = buildHttpProject(api, { skipResponseValidation });
+        built = buildHttpProject(api, { skipResponseValidation, enableLogs });
       } catch (err: any) {
         vscode.window.showErrorMessage(`PlaySpec: failed to generate tests from this spec: ${err.message || err}`);
         return undefined;

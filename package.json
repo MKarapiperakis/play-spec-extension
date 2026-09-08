@@ -164,6 +164,11 @@
           "type": "boolean",
           "default": false,
           "description": "Default value written to the generated project's .env.sample for SKIP_RESPONSE_VALIDATION."
+        },
+        "playspec.enableRequestLogs": {
+          "type": "boolean",
+          "default": false,
+          "description": "Default value written to the generated project's .env.sample for ENABLE_LOGS. When enabled, tests log the request URL, headers, and body to the terminal before each call."
         }
       }
     }

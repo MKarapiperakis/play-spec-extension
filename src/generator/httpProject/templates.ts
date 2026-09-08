@@ -75,10 +75,12 @@ export function envSample({
   authSchemes,
   baseUrl,
   skipResponseValidation,
+  enableLogs,
 }: {
   authSchemes: { scheme: SecurityScheme; envPrefix: string }[];
   baseUrl: string;
   skipResponseValidation: boolean;
+  enableLogs: boolean;
 }): string {
   const lines = [
     `# Base URL of the API under test (overrides the spec's "servers" entry).`,
@@ -88,6 +90,10 @@ export function envSample({
     '# assert the HTTP status code). Useful while your test data in tests/data/params.ts',
     "# doesn't yet line up with what your environment actually returns.",
     `SKIP_RESPONSE_VALIDATION=${skipResponseValidation ? 'true' : 'false'}`,
+    '',
+    '# Set to "true" to log the request URL, headers, and body to the terminal',
+    '# before each API call. Useful for debugging failing requests.',
+    `ENABLE_LOGS=${enableLogs ? 'true' : 'false'}`,
     '',
   ];
   for (const { scheme, envPrefix } of authSchemes) {
