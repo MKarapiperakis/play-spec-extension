@@ -34,7 +34,10 @@ export function packageJson(projectName: string, tagSlugs: string[] = []): strin
 
 export function playwrightConfig(baseUrl: string): string {
   return `import { defineConfig } from '@playwright/test';
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 /**
  * Pure API-testing config: no browser projects are needed since every test
@@ -117,9 +120,7 @@ export function envSample({
 // filling in credentials for one scheme from ever affecting another: each test
 // only calls the specific scheme function(s) its own operation requires.
 export function bearerAuthFile(scheme: SecurityScheme, envPrefix: string, functionName: string): string {
-  return `import 'dotenv/config';
-
-/** Bearer token for the "${scheme.name}" security scheme (see .env.sample). */
+  return `/** Bearer token for the "${scheme.name}" security scheme (see .env.sample). */
 export function ${functionName}(): Record<string, string> {
   const token = process.env.${envPrefix}_BEARER_TOKEN;
   return token ? { Authorization: \`Bearer \${token}\` } : {};
@@ -128,9 +129,7 @@ export function ${functionName}(): Record<string, string> {
 }
 
 export function basicAuthFile(scheme: SecurityScheme, envPrefix: string, functionName: string): string {
-  return `import 'dotenv/config';
-
-/** HTTP Basic credentials for the "${scheme.name}" security scheme (see .env.sample). */
+  return `/** HTTP Basic credentials for the "${scheme.name}" security scheme (see .env.sample). */
 export function ${functionName}(): Record<string, string> {
   const username = process.env.${envPrefix}_USERNAME;
   const password = process.env.${envPrefix}_PASSWORD;
@@ -143,9 +142,7 @@ export function ${functionName}(): Record<string, string> {
 
 export function apiKeyAuthFile(scheme: SecurityScheme, envPrefix: string, functionName: string): string {
   const headerName = scheme.headerName || scheme.name;
-  return `import 'dotenv/config';
-
-/** API key for the "${scheme.name}" security scheme (see .env.sample). */
+  return `/** API key for the "${scheme.name}" security scheme (see .env.sample). */
 export function ${functionName}(): Record<string, string> {
   const key = process.env.${envPrefix}_API_KEY;
   return key ? { ${jsString(headerName)}: key } : {};
