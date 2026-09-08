@@ -34,8 +34,8 @@ export function packageJson(projectName: string, tagSlugs: string[] = []): strin
 
 export function playwrightConfig(baseUrl: string): string {
   return `import { defineConfig } from '@playwright/test';
-import dotenv from 'dotenv';
-import path from 'path';
+import * as path from 'path';
+import * as dotenv from 'dotenv';
 
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
