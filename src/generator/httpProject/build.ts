@@ -138,14 +138,20 @@ function renderOperationTest(op: Operation, authRegistry: Map<string, AuthRegist
   lines.push(
     `  const response = await ${methodCall};`,
     `  expect(${JSON.stringify(successCodes)}).toContain(response.status());`,
+    '  const responseBody = await response.json().catch(() => null);',
+    '',
+    "  if (process.env.ENABLE_LOGS === 'true') {",
+    "    console.log('  Status:', response.status());",
+    "    console.log('  Response:', JSON.stringify(responseBody, null, 2));",
+    '  }',
   );
 
   if (isAssertableExample(expectedShape)) {
     lines.push(
+      '',
       "  if (process.env.SKIP_RESPONSE_VALIDATION !== 'true') {",
-      '    const body = await response.json().catch(() => null);',
-      '    if (body !== null) {',
-      `      expectResponseMatches(body, ${JSON.stringify(expectedShape, null, 2).split('\n').join('\n      ')});`,
+      '    if (responseBody !== null) {',
+      `      expectResponseMatches(responseBody, ${JSON.stringify(expectedShape, null, 2).split('\n').join('\n      ')});`,
       '    }',
       '  }'
     );
