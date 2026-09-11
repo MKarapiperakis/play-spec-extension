@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { loadSpec, SpecError } from '../parser/loadSpec';
 import { buildHttpProject } from '../generator/httpProject/build';
+import { listOperations, Operation } from '../generator/operations';
+import { operationKey } from '../generator/paramsData';
 import { fetchText, FetchError } from '../utils/fetchText';
 import { fileExists, directoryHasEntries, joinPath } from '../utils/fsHelpers';
 import { writeProject, WriteSummary, MANIFEST_RELATIVE_PATH } from '../utils/projectWriter';
@@ -54,32 +56,93 @@ function formatFileList(files: string[], max = 5): string {
   return `${files.slice(0, max).join(', ')}, +${files.length - max} more`;
 }
 
+interface OperationQuickPickItem extends vscode.QuickPickItem {
+  key?: string; // absent on tag-separator items
+}
+
+/**
+ * Lets the user narrow generation down to specific operations, grouped by tag
+ * and all pre-checked so accepting without changing anything reproduces the
+ * old "generate everything" behavior. Returns undefined if the user backed
+ * out (Escape) — distinct from an empty Set, which means "picked, but
+ * deselected everything."
+ */
+async function pickOperations(operations: Operation[]): Promise<Set<string> | undefined> {
+  const byTag = new Map<string, Operation[]>();
+  for (const op of operations) {
+    const tag = op.tags[0];
+    if (!byTag.has(tag)) byTag.set(tag, []);
+    byTag.get(tag)!.push(op);
+  }
+
+  const items: OperationQuickPickItem[] = [];
+  for (const [tag, ops] of byTag.entries()) {
+    items.push({ label: tag, kind: vscode.QuickPickItemKind.Separator });
+    for (const op of ops) {
+      items.push({
+        label: `${op.method.toUpperCase()} ${op.path}`,
+        description: op.summary,
+        key: operationKey(op),
+        picked: true,
+      });
+    }
+  }
+
+  const picks = await vscode.window.showQuickPick(items, {
+    canPickMany: true,
+    matchOnDescription: true,
+    ignoreFocusOut: true,
+    placeHolder: `Select operations to generate tests for (${operations.length} found, all selected by default)`,
+  });
+
+  if (!picks) return undefined;
+  return new Set(picks.filter((item): item is OperationQuickPickItem & { key: string } => Boolean(item.key)).map((item) => item.key));
+}
+
 async function runGeneration(specText: string, sourceLabel: string): Promise<void> {
   const workspaceFolder = await pickWorkspaceFolder();
   if (!workspaceFolder) return;
 
-  // Only the parse/build/write work runs inside withProgress — its spinner
-  // stays on screen until this whole callback resolves, so anything that
-  // waits on user interaction (like the completion message's buttons below)
-  // must happen *after* this returns, or the progress notification would
-  // sit there indefinitely looking hung while it's actually just waiting
-  // on a toast the user has no reason to expect yet.
+  // Parsing runs inside its own short-lived progress notification, separate
+  // from the build/write one below, so the operation picker's QuickPick (a
+  // user-interaction step) never sits *inside* a spinner — see the note on
+  // the second withProgress call for why that matters.
+  let api: any;
+  try {
+    api = await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Notification, title: `PlaySpec: parsing ${sourceLabel}...`, cancellable: false },
+      async () => (await loadSpec(specText)).api
+    );
+  } catch (err) {
+    if (err instanceof SpecError) {
+      vscode.window.showErrorMessage(`PlaySpec: ${err.message}`);
+      return;
+    }
+    throw err;
+  }
+
+  const operations = listOperations(api);
+  if (operations.length === 0) {
+    vscode.window.showWarningMessage('PlaySpec: no operations were found in this spec — nothing to generate.');
+    return;
+  }
+
+  const selectedOperationKeys = await pickOperations(operations);
+  if (!selectedOperationKeys) return; // user backed out of the picker
+  if (selectedOperationKeys.size === 0) {
+    vscode.window.showWarningMessage('PlaySpec: no operations selected — nothing to generate.');
+    return;
+  }
+
+  // Only the build/write work runs inside withProgress — its spinner stays
+  // on screen until this whole callback resolves, so anything that waits on
+  // user interaction (like the completion message's buttons below) must
+  // happen *after* this returns, or the progress notification would sit
+  // there indefinitely looking hung while it's actually just waiting on a
+  // toast the user has no reason to expect yet.
   const result = await vscode.window.withProgress(
     { location: vscode.ProgressLocation.Notification, title: 'PlaySpec: generating Playwright tests', cancellable: false },
     async (progress): Promise<GenerationResult | undefined> => {
-      progress.report({ message: `Parsing ${sourceLabel}...` });
-
-      let api: any;
-      try {
-        ({ api } = await loadSpec(specText));
-      } catch (err) {
-        if (err instanceof SpecError) {
-          vscode.window.showErrorMessage(`PlaySpec: ${err.message}`);
-          return undefined;
-        }
-        throw err;
-      }
-
       progress.report({ message: 'Resolving output folder...' });
       const outputUri = await resolveOutputFolder(workspaceFolder);
       if (!outputUri) return undefined;
@@ -91,7 +154,7 @@ async function runGeneration(specText: string, sourceLabel: string): Promise<voi
       progress.report({ message: 'Generating test files...' });
       let built;
       try {
-        built = buildHttpProject(api, { skipResponseValidation, enableLogs });
+        built = buildHttpProject(api, { skipResponseValidation, enableLogs, selectedOperationKeys });
       } catch (err: any) {
         vscode.window.showErrorMessage(`PlaySpec: failed to generate tests from this spec: ${err.message || err}`);
         return undefined;

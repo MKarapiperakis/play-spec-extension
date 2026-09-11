@@ -215,6 +215,8 @@ export interface BuildOptions {
   baseUrl?: string;
   skipResponseValidation?: boolean;
   enableLogs?: boolean;
+  /** When set, only operations whose operationKey() is in this set are generated — everything else in the spec is left out entirely. */
+  selectedOperationKeys?: Set<string>;
 }
 
 export interface OperationFile {
@@ -245,7 +247,10 @@ export interface BuiltProject {
 export function buildHttpProject(api: any, options: BuildOptions = {}): BuiltProject {
   const projectName = toSafeProjectName(options.projectName || (api.info && api.info.title) || 'openapi-http-tests');
   const baseUrl = resolveBaseUrl(api, options.baseUrl);
-  const operations = listOperations(api);
+  const allOperations = listOperations(api);
+  const operations = options.selectedOperationKeys
+    ? allOperations.filter((op) => options.selectedOperationKeys!.has(operationKey(op)))
+    : allOperations;
   const authRegistry = buildAuthRegistry(api);
 
   const byTag = new Map<string, Operation[]>();
