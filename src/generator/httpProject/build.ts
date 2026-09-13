@@ -237,6 +237,15 @@ export interface BuiltProject {
   operationFiles: OperationFile[];
   /** Fresh placeholder param values, merged (not replacing) into tests/data/params.ts. */
   paramsByOperation: Record<string, Record<string, string>>;
+  /**
+   * operationKey() for every operation currently in the spec, regardless of
+   * `selectedOperationKeys` filtering — lets writeProject tell "not part of
+   * this partial run" apart from "no longer in the spec at all" when
+   * reconciling the manifest and tests/data/params.ts, so a filtered
+   * regeneration never mistakes everything it didn't touch for having been
+   * removed from the spec.
+   */
+  allOperationKeys: string[];
 }
 
 /**
@@ -253,15 +262,22 @@ export function buildHttpProject(api: any, options: BuildOptions = {}): BuiltPro
     : allOperations;
   const authRegistry = buildAuthRegistry(api);
 
+  // Grouped from the FULL spec, not just this run's (possibly filtered)
+  // selection: tagSlugs feeds scaffold content (README, package.json
+  // scripts) that must always reflect the whole spec, and per-tag slug
+  // dedup needs to see every operation in a tag so an operation gets the
+  // same filename it would in a full run — otherwise the same operation
+  // could be assigned a different filename (and a different slug-collision
+  // suffix) depending on which subset happens to be selected this time.
   const byTag = new Map<string, Operation[]>();
-  for (const op of operations) {
+  for (const op of allOperations) {
     const tag = op.tags[0];
     if (!byTag.has(tag)) byTag.set(tag, []);
     byTag.get(tag)!.push(op);
   }
   const tagSlugs = [...new Set([...byTag.keys()].map(slugifyTag))];
 
-  const operationFiles: OperationFile[] = [];
+  const relativePathByKey = new Map<string, string>();
   for (const [tag, ops] of byTag.entries()) {
     const tagSlug = slugifyTag(tag);
     const usedSlugs = new Set<string>();
@@ -271,14 +287,16 @@ export function buildHttpProject(api: any, options: BuildOptions = {}): BuiltPro
       let n = 2;
       while (usedSlugs.has(slug)) slug = `${base}-${n++}`;
       usedSlugs.add(slug);
-
-      operationFiles.push({
-        operationKey: operationKey(op),
-        relativePath: `tests/spec/${tagSlug}/${slug}.spec.ts`,
-        content: buildOperationFile(tag, op, authRegistry),
-      });
+      relativePathByKey.set(operationKey(op), `tests/spec/${tagSlug}/${slug}.spec.ts`);
     }
   }
+
+  // Only operations actually selected for this run get a file (re)written.
+  const operationFiles: OperationFile[] = operations.map((op) => ({
+    operationKey: operationKey(op),
+    relativePath: relativePathByKey.get(operationKey(op))!,
+    content: buildOperationFile(op.tags[0], op, authRegistry),
+  }));
 
   const scaffoldFiles: Record<string, string> = {
     'package.json': templates.packageJson(projectName, tagSlugs),
@@ -289,7 +307,7 @@ export function buildHttpProject(api: any, options: BuildOptions = {}): BuiltPro
       skipResponseValidation: Boolean(options.skipResponseValidation),
       enableLogs: Boolean(options.enableLogs),
     }),
-    'README.md': templates.readme(projectName, operations.length, tagSlugs),
+    'README.md': templates.readme(projectName, allOperations.length, tagSlugs),
     'tests/helpers/assertSchema.ts': templates.assertSchemaHelper(),
   };
 
@@ -310,5 +328,6 @@ export function buildHttpProject(api: any, options: BuildOptions = {}): BuiltPro
     scaffoldFiles,
     operationFiles,
     paramsByOperation,
+    allOperationKeys: allOperations.map(operationKey),
   };
 }

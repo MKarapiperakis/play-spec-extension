@@ -2,7 +2,7 @@
   "name": "playspec",
   "displayName": "PlaySpec – Generate Playwright Tests from OpenAPI/Swagger",
   "description": "Generate Playwright API tests from an OpenAPI/Swagger spec (file or URL), directly inside your workspace — endpoints grouped by tag, sample data, and auth wired up automatically.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "playspec",
   "icon": "resources/icon.png",
   "license": "MIT",
@@ -78,6 +78,18 @@
         "title": "PlaySpec: Refresh Spec Explorer",
         "category": "PlaySpec",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "playspec.runGeneratedTest",
+        "title": "PlaySpec: Run This Test",
+        "category": "PlaySpec",
+        "icon": "$(play)"
+      },
+      {
+        "command": "playspec.debugGeneratedTest",
+        "title": "PlaySpec: Debug This Test",
+        "category": "PlaySpec",
+        "icon": "$(debug-alt)"
       }
     ],
     "viewsContainers": {
@@ -139,6 +151,16 @@
           "command": "playspec.validateFromExplorer",
           "when": "view == playspec.specExplorer && viewItem == playspec.specFile",
           "group": "inline@2"
+        },
+        {
+          "command": "playspec.runGeneratedTest",
+          "when": "view == playspec.specExplorer && viewItem == playspec.testFile",
+          "group": "inline@1"
+        },
+        {
+          "command": "playspec.debugGeneratedTest",
+          "when": "view == playspec.specExplorer && viewItem == playspec.testFile",
+          "group": "inline@2"
         }
       ],
       "commandPalette": [
@@ -148,6 +170,14 @@
         },
         {
           "command": "playspec.validateFromExplorer",
+          "when": "false"
+        },
+        {
+          "command": "playspec.runGeneratedTest",
+          "when": "false"
+        },
+        {
+          "command": "playspec.debugGeneratedTest",
           "when": "false"
         }
       ]

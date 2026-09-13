@@ -181,8 +181,21 @@ interface ParamsMergeResult {
  * adds a new operation's entry or a new param within an existing entry —
  * existing values are never overwritten, and entries for operations no
  * longer in the spec are dropped (reported via droppedKeys, not silently).
+ *
+ * `currentOperationKeys` is every operation currently in the spec — not just
+ * the ones `fresh` has entries for. `fresh` only covers whatever subset of
+ * operations this run actually processed (which is *every* operation for a
+ * full generation, but can be a hand-picked few for a partial regeneration);
+ * without this distinction, an operation simply not part of this run would
+ * look identical to one genuinely removed from the spec, and its already
+ *-filled-in real values would be deleted for no reason other than not being
+ * regenerated this time.
  */
-function mergeParamsFile(existingText: string | undefined, fresh: Record<string, Record<string, string>>): ParamsMergeResult {
+function mergeParamsFile(
+  existingText: string | undefined,
+  fresh: Record<string, Record<string, string>>,
+  currentOperationKeys: ReadonlySet<string>
+): ParamsMergeResult {
   if (!existingText) {
     return { content: renderParamsFile(fresh), created: true, merged: false, unparseable: false, newKeys: Object.keys(fresh), droppedKeys: [] };
   }
@@ -206,6 +219,15 @@ function mergeParamsFile(existingText: string | undefined, fresh: Record<string,
   const newKeys: string[] = [];
   const droppedKeys: string[] = [];
   const merged: Record<string, Record<string, string>> = {};
+
+  // Carry forward every entry for an operation that's still in the spec but
+  // wasn't part of this run's `fresh` set (untouched, exactly as filled in).
+  for (const [key, existingValues] of Object.entries(existing)) {
+    if (currentOperationKeys.has(key) && !fresh[key]) {
+      merged[key] = existingValues;
+    }
+  }
+
   for (const [key, freshValues] of Object.entries(fresh)) {
     const existingValues = existing[key];
     if (!existingValues) {
@@ -230,7 +252,7 @@ function mergeParamsFile(existingText: string | undefined, fresh: Record<string,
     }
   }
   for (const key of Object.keys(existing)) {
-    if (!fresh[key]) droppedKeys.push(key);
+    if (!currentOperationKeys.has(key)) droppedKeys.push(key);
   }
 
   const same = JSON.stringify(merged) === JSON.stringify(existing);
@@ -323,10 +345,20 @@ export async function writeProject(rootUri: vscode.Uri, built: BuiltProject): Pr
     }
   }
 
-  const seenKeys = new Set<string>();
+  // Every operation currently in the spec, regardless of whether this run's
+  // (possibly filtered, see BuildOptions.selectedOperationKeys) built.operationFiles
+  // actually touched it — lets a partial regeneration tell "not part of this
+  // run" apart from "no longer in the spec at all" below, instead of treating
+  // its own selection as if it were the spec's entire current operation set.
+  const currentOperationKeys = new Set(built.allOperationKeys);
+
+  // Carry forward every manifest entry still valid in the spec before this
+  // run's own writes below (which may only cover a subset of them).
+  for (const [key, entry] of Object.entries(manifest.operations)) {
+    if (currentOperationKeys.has(key)) newManifest.operations[key] = entry;
+  }
 
   for (const opFile of built.operationFiles) {
-    seenKeys.add(opFile.operationKey);
     const hash = hashContent(opFile.content);
     const uri = joinPath(rootUri, opFile.relativePath);
     const priorEntry = manifest.operations[opFile.operationKey];
@@ -349,7 +381,7 @@ export async function writeProject(rootUri: vscode.Uri, built: BuiltProject): Pr
   }
 
   for (const [key, entry] of Object.entries(manifest.operations)) {
-    if (!seenKeys.has(key)) summary.operationsOrphaned.push(entry.file);
+    if (!currentOperationKeys.has(key)) summary.operationsOrphaned.push(entry.file);
   }
 
   await writeManifest(rootUri, newManifest);
@@ -361,7 +393,7 @@ export async function writeProject(rootUri: vscode.Uri, built: BuiltProject): Pr
   // already exists (may need entries dropped, even down to none left).
   // Skip only when there's truly nothing on either side.
   if (Object.keys(built.paramsByOperation).length > 0 || existingParamsText !== undefined) {
-    const result = mergeParamsFile(existingParamsText, built.paramsByOperation);
+    const result = mergeParamsFile(existingParamsText, built.paramsByOperation, currentOperationKeys);
     if (result.created || result.merged) {
       await writeTextFile(paramsUri, result.content);
     }
