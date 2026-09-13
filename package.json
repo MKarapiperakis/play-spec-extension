@@ -2,7 +2,7 @@
   "name": "playspec",
   "displayName": "PlaySpec – Generate Playwright Tests from OpenAPI/Swagger",
   "description": "Generate Playwright API tests from an OpenAPI/Swagger spec (file or URL), directly inside your workspace — endpoints grouped by tag, sample data, and auth wired up automatically.",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "publisher": "playspec",
   "icon": "resources/icon.png",
   "license": "MIT",
@@ -90,6 +90,12 @@
         "title": "PlaySpec: Debug This Test",
         "category": "PlaySpec",
         "icon": "$(debug-alt)"
+      },
+      {
+        "command": "playspec.openTestReport",
+        "title": "PlaySpec: Open Test Report",
+        "category": "PlaySpec",
+        "icon": "$(graph)"
       }
     ],
     "viewsContainers": {
@@ -161,6 +167,11 @@
           "command": "playspec.debugGeneratedTest",
           "when": "view == playspec.specExplorer && viewItem == playspec.testFile",
           "group": "inline@2"
+        },
+        {
+          "command": "playspec.openTestReport",
+          "when": "view == playspec.specExplorer && viewItem == playspec.testsGroup",
+          "group": "inline@1"
         }
       ],
       "commandPalette": [

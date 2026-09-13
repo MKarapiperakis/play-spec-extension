@@ -2,8 +2,10 @@ import * as vscode from 'vscode';
 import { generateFromFileCommand, generateFromUrlCommand, generateFromExplorerCommand } from './commands/generateTests';
 import { validateFromFileCommand, validateFromUrlCommand, validateFromExplorerCommand } from './commands/validateSpecCommands';
 import { runGeneratedTestCommand, debugGeneratedTestCommand } from './commands/runGeneratedTestCommands';
+import { openTestReportCommand } from './commands/openTestReportCommand';
 import { SpecExplorerProvider } from './views/specTreeProvider';
 import { initValidationReportPanel } from './views/validationReportPanel';
+import { disposeReportServers } from './utils/reportServer';
 
 export function activate(context: vscode.ExtensionContext): void {
   initValidationReportPanel(context.extensionUri);
@@ -16,7 +18,9 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('playspec.validateFromUrl', validateFromUrlCommand),
     vscode.commands.registerCommand('playspec.validateFromExplorer', validateFromExplorerCommand),
     vscode.commands.registerCommand('playspec.runGeneratedTest', runGeneratedTestCommand),
-    vscode.commands.registerCommand('playspec.debugGeneratedTest', debugGeneratedTestCommand)
+    vscode.commands.registerCommand('playspec.debugGeneratedTest', debugGeneratedTestCommand),
+    vscode.commands.registerCommand('playspec.openTestReport', openTestReportCommand),
+    { dispose: disposeReportServers }
   );
 
   const specExplorer = new SpecExplorerProvider();

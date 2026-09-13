@@ -115,6 +115,8 @@ export class SpecExplorerProvider implements vscode.TreeDataProvider<PlaySpecNod
       case 'testsGroup': {
         const item = new vscode.TreeItem('Generated Tests', vscode.TreeItemCollapsibleState.Collapsed);
         item.iconPath = new vscode.ThemeIcon('beaker');
+        item.contextValue = 'playspec.testsGroup';
+        item.tooltip = 'Generated tests, grouped by tag. Use the inline button to open the last test run\'s HTML report.';
         return item;
       }
       case 'testTagGroup': {
