@@ -82,7 +82,18 @@ function renderReportHtml(result: ValidationResult, sourceLabel: string, iconSrc
     </section>`
     : '';
 
-  const categoriesHtml = result.categories ? result.categories.map(renderCategory).join('') : '';
+  let categoriesHtml: string;
+  if (result.categories) {
+    categoriesHtml = result.categories.map(renderCategory).join('');
+  } else {
+    const issueItems = [
+      ...result.errors.map((e) => `<li class="issue issue-error"><span class="issue-icon">✖</span><span class="issue-message">${escapeHtml(e.message)}</span></li>`),
+      ...result.warnings.map((w) => `<li class="issue issue-warning"><span class="issue-icon">⚠</span><span class="issue-message">${escapeHtml(w.message)}</span></li>`),
+    ];
+    categoriesHtml = issueItems.length
+      ? `<section class="category"><h3>Validation errors</h3><ul class="issue-list">${issueItems.join('')}</ul></section>`
+      : '';
+  }
 
   return `<!DOCTYPE html>
 <html lang="en">
