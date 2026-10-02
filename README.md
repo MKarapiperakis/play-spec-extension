@@ -17,6 +17,14 @@ self-contained, runnable test project, no separate web tool, no downloading a zi
 - **Safe to regenerate.**: Change one endpoint in the spec and only that endpoint's test file is
   touched — everything else, including your own hand-edits, is left alone. See
   [Regenerating safely](#regenerating-safely).
+- **Create custom tests**: Clone any generated test into a numbered `.customN.spec.ts` file with
+  imports, auth and the request already set up, then adapt it to cover more cases. Custom tests
+  are listed and runnable alongside the generated ones, and regeneration never touches them. See
+  [Adding your own tests](#adding-your-own-tests).
+- **Run, debug, and see the test report directly from your editor**: Every generated and custom
+  test is listed in the PlaySpec panel with Run and Debug buttons, and the Playwright HTML report
+  of the last run opens in an editor tab with one click, no separate browser or
+  `npx playwright show-report` needed.
 - **Validate a spec before generating**: Catches typos and mistakes (a misspelled `in`, a
   security scheme referenced but never declared, an undeclared path parameter, missing response
   examples/schemas) in a readable report, without writing any files. See
@@ -186,6 +194,7 @@ in credentials for one scheme never affects tests using another.
 |---|---|---|
 | `playspec.outputFolderName` | `"playwright-tests"` | Folder created at the workspace root. |
 | `playspec.skipResponseValidation` | `false` | Default written into the generated `.env.sample`'s `SKIP_RESPONSE_VALIDATION`. |
+| `playspec.enableRequestLogs` | `false` | Default written into the generated `.env.sample`'s `ENABLE_LOGS`. When enabled, tests log the request URL, headers, and body to the terminal before each call. |
 
 ## Known limitations
 
