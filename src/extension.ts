@@ -3,6 +3,7 @@ import { generateFromFileCommand, generateFromUrlCommand, generateFromExplorerCo
 import { validateFromFileCommand, validateFromUrlCommand, validateFromExplorerCommand } from './commands/validateSpecCommands';
 import { runGeneratedTestCommand, debugGeneratedTestCommand } from './commands/runGeneratedTestCommands';
 import { openTestReportCommand } from './commands/openTestReportCommand';
+import { addCustomTestCommand } from './commands/addCustomTestCommand';
 import { SpecExplorerProvider } from './views/specTreeProvider';
 import { initValidationReportPanel } from './views/validationReportPanel';
 import { disposeReportServers } from './utils/reportServer';
@@ -20,6 +21,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('playspec.runGeneratedTest', runGeneratedTestCommand),
     vscode.commands.registerCommand('playspec.debugGeneratedTest', debugGeneratedTestCommand),
     vscode.commands.registerCommand('playspec.openTestReport', openTestReportCommand),
+    vscode.commands.registerCommand('playspec.addCustomTest', addCustomTestCommand),
     { dispose: disposeReportServers }
   );
 
@@ -41,8 +43,14 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   const watcher = vscode.workspace.createFileSystemWatcher('**/*.{json,yaml,yml}');
+  // Custom test files added/removed under a generated project's tests/spec/.
+  // Edits don't change the list, so only create/delete matter here.
+  const testFileWatcher = vscode.workspace.createFileSystemWatcher('**/*.spec.ts', false, true, false);
   context.subscriptions.push(
     watcher,
+    testFileWatcher,
+    testFileWatcher.onDidCreate(scheduleRefresh),
+    testFileWatcher.onDidDelete(scheduleRefresh),
     watcher.onDidCreate(scheduleRefresh),
     watcher.onDidDelete(scheduleRefresh),
     watcher.onDidChange(scheduleRefresh),

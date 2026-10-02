@@ -6,12 +6,26 @@ import { fileExists } from './fsHelpers';
 // letting a user keep a single terminal tab per project themselves.
 const terminals = new Map<string, vscode.Terminal>();
 
+// Stops Playwright's HTML reporter from serving + opening the report in a
+// browser after a run — its default ('on-failure') whenever a config just
+// says `reporter: 'html'` (older PlaySpec templates, or a hand-edited
+// config), which also blocks the terminal until Ctrl+C. The env var takes
+// precedence over the config's own `open` option, so this holds regardless
+// of what playwright.config.ts says; the report is still written, and
+// viewable via the "Open Test Report" button. PLAYWRIGHT_HTML_OPEN is the
+// current name (1.45+), PW_TEST_HTML_REPORT_OPEN the older one.
+const NO_REPORT_OPEN_ENV = { PLAYWRIGHT_HTML_OPEN: 'never', PW_TEST_HTML_REPORT_OPEN: 'never' };
+
 function terminalFor(projectRootUri: vscode.Uri, projectLabel: string): vscode.Terminal {
   const key = projectRootUri.toString();
   const existing = terminals.get(key);
   if (existing && existing.exitStatus === undefined) return existing;
 
-  const terminal = vscode.window.createTerminal({ name: `PlaySpec: ${projectLabel}`, cwd: projectRootUri });
+  const terminal = vscode.window.createTerminal({
+    name: `PlaySpec: ${projectLabel}`,
+    cwd: projectRootUri,
+    env: NO_REPORT_OPEN_ENV,
+  });
   terminals.set(key, terminal);
   return terminal;
 }
@@ -53,6 +67,7 @@ export async function debugGeneratedTest(projectRootUri: vscode.Uri, relativePat
     program: cliUri.fsPath,
     args: ['test', relativePath],
     cwd: projectRootUri.fsPath,
+    env: NO_REPORT_OPEN_ENV,
     console: 'integratedTerminal',
     internalConsoleOptions: 'neverOpen',
   });

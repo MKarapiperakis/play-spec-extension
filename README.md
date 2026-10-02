@@ -1,23 +1,23 @@
-# PlaySpec — Generate Playwright Tests from OpenAPI/Swagger
+# PlaySpec - Generate Playwright Tests from OpenAPI/Swagger
 
 Turn an OpenAPI/Swagger spec into a runnable [Playwright](https://playwright.dev/docs/api-testing)
 API test project, directly inside your existing VS Code workspace. Point it at a spec file or a
 live URL and it groups endpoints by tag, fills in sample parameter/body values from the spec's own
 examples and schemas, wires up whatever authentication the spec declares, and writes a
-self-contained, runnable test project — no separate web tool, no downloading a zip.
+self-contained, runnable test project, no separate web tool, no downloading a zip.
 
 ## Features
 
-- **Two spec sources** — a local `.json`/`.yaml`/`.yml` file, or a live URL.
-- **Endpoints grouped by tag**, one Playwright test file per operation.
-- **Sample data generated automatically** from each schema's `example`/`default`/`enum`, with
+- **Two spec sources**: A local `.json`/`.yaml`/`.yml` file, or a live URL.
+- **Endpoints grouped by tag**: One Playwright test file per operation.
+- **Sample data generated automatically**: from each schema's `example`/`default`/`enum`, with
   sensible type-based fallbacks — including for every query parameter, required or optional.
-- **Authentication wired up** for Bearer, Basic, and API key security schemes, read from `.env` at
+- **Authentication wired up**: For Bearer, Basic, and API key security schemes, read from `.env` at
   test-runtime — no secrets ever baked into a test file.
-- **Safe to regenerate.** Change one endpoint in the spec and only that endpoint's test file is
+- **Safe to regenerate.**: Change one endpoint in the spec and only that endpoint's test file is
   touched — everything else, including your own hand-edits, is left alone. See
   [Regenerating safely](#regenerating-safely).
-- **Validate a spec before generating** — catches typos and mistakes (a misspelled `in`, a
+- **Validate a spec before generating**: Catches typos and mistakes (a misspelled `in`, a
   security scheme referenced but never declared, an undeclared path parameter, missing response
   examples/schemas) in a readable report, without writing any files. See
   [Validating a spec](#validating-a-spec).
@@ -123,6 +123,26 @@ the request. Fill one in to have it sent.
 
 Request bodies are generated inline per test from the spec's schema — edit the test file directly
 if a specific test needs different data.
+
+## Adding your own tests
+
+To cover more cases than the generated tests do, put them in your own file under `tests/spec/`,
+for example next to the generated one: `tests/spec/pets/get-pets.custom1.spec.ts`. Any `.spec.ts`
+file there that PlaySpec didn't generate appears under **Generated Tests** in the PlaySpec
+explorer, in its tag folder and marked *custom*, with the same Run/Debug buttons. Regeneration
+never writes to these files.
+
+The quickest way to start one is the **Add Custom Test** button (new-file icon) on a generated
+test in the explorer. Each click creates the next numbered file next to that test
+(`<name>.custom1.spec.ts`, `<name>.custom2.spec.ts`, ...), copied from it with imports, auth
+headers and the request already set up, and opens it so you can adapt it for another case. The
+same **PlaySpec: Add Custom Test for This Operation** action is in the right-click menu of a
+generated test file in the PlaySpec explorer, the VS Code Explorer, its editor tab and the editor
+itself, and in the Command Palette while one is open.
+
+If you name a file yourself, keep a `.custom` part before `.spec.ts` (e.g. `.custom3.spec.ts`): generated file names never contain a dot, so a custom file can't
+clash with a test PlaySpec generates later. Avoid adding tests inside a generated file, because
+it's rewritten whenever that operation changes in the spec.
 
 ## Regenerating safely
 

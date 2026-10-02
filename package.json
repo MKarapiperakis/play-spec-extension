@@ -92,6 +92,12 @@
         "icon": "$(debug-alt)"
       },
       {
+        "command": "playspec.addCustomTest",
+        "title": "PlaySpec: Add Custom Test for This Operation",
+        "category": "PlaySpec",
+        "icon": "$(new-file)"
+      },
+      {
         "command": "playspec.openTestReport",
         "title": "PlaySpec: Open Test Report",
         "category": "PlaySpec",
@@ -125,6 +131,11 @@
         {
           "command": "playspec.validateFromExplorer",
           "when": "resourceExtname == .json || resourceExtname == .yaml || resourceExtname == .yml",
+          "group": "playspec"
+        },
+        {
+          "command": "playspec.addCustomTest",
+          "when": "resourceFilename =~ /^[^.]+\\.spec\\.ts$/",
           "group": "playspec"
         }
       ],
@@ -160,18 +171,28 @@
         },
         {
           "command": "playspec.runGeneratedTest",
-          "when": "view == playspec.specExplorer && viewItem == playspec.testFile",
+          "when": "view == playspec.specExplorer && viewItem =~ /^playspec\\.testFile/",
           "group": "inline@1"
         },
         {
           "command": "playspec.debugGeneratedTest",
-          "when": "view == playspec.specExplorer && viewItem == playspec.testFile",
+          "when": "view == playspec.specExplorer && viewItem =~ /^playspec\\.testFile/",
           "group": "inline@2"
+        },
+        {
+          "command": "playspec.addCustomTest",
+          "when": "view == playspec.specExplorer && viewItem == playspec.testFile.generated",
+          "group": "inline@3"
         },
         {
           "command": "playspec.openTestReport",
           "when": "view == playspec.specExplorer && viewItem == playspec.testsGroup",
           "group": "inline@1"
+        },
+        {
+          "command": "playspec.addCustomTest",
+          "when": "view == playspec.specExplorer && viewItem == playspec.testFile.generated",
+          "group": "playspec@1"
         }
       ],
       "commandPalette": [
@@ -190,6 +211,24 @@
         {
           "command": "playspec.debugGeneratedTest",
           "when": "false"
+        },
+        {
+          "command": "playspec.addCustomTest",
+          "when": "resourceFilename =~ /^[^.]+\\.spec\\.ts$/"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "playspec.addCustomTest",
+          "when": "resourceFilename =~ /^[^.]+\\.spec\\.ts$/",
+          "group": "playspec"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "playspec.addCustomTest",
+          "when": "resourceFilename =~ /^[^.]+\\.spec\\.ts$/",
+          "group": "playspec"
         }
       ]
     },
