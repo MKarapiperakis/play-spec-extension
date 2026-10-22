@@ -313,8 +313,9 @@ control** alongside the tests so regeneration stays safe for everyone working on
 - Each test only sends the credentials for the security scheme(s) that specific operation
   declares in the spec (see \`tests/helpers/auth/*.ts\`, one file per named scheme) - filling in
   credentials for an unrelated scheme in \`.env\` never affects other tests.
-- When an operation lists multiple alternative \`security\` requirements (i.e. "either auth method
-  works"), only the first alternative is used.
+- When an operation lists multiple \`security\` requirements, the credentials for all of them are
+  sent together (not just the first one), so specs that list required schemes as separate entries
+  still work. Fill in every scheme the operation uses in \`.env\`.
 - Cookie-based parameters and OAuth2 flows are not generated; add them manually if your API needs them.
 
 ## Regenerating

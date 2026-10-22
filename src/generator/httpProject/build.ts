@@ -63,19 +63,22 @@ interface AuthRegistryEntry {
 }
 
 /**
- * Resolves which auth-scheme function(s) a single operation needs, using only
- * the FIRST alternative in its `security` array (OpenAPI's `security` is a
- * list of alternative requirement objects — "any one of these satisfies auth" —
- * and each object can itself require multiple schemes simultaneously, which we
- * do honor by merging all of them together).
+ * Resolves which auth-scheme function(s) a single operation needs: every
+ * scheme named in ANY of its `security` requirement objects, merged together
+ * (deduplicated, in spec order). Strictly, OpenAPI's `security` is a list of
+ * alternatives — "any one of these satisfies auth" — but real-world specs
+ * very often list schemes that are all required as separate entries (e.g.
+ * `[{ BearerAuth: [] }, { SessionId: [] }]`) instead of one combined object,
+ * and sending every declared credential works for both readings, whereas
+ * picking just one silently breaks the latter. Headers from schemes later in
+ * the list win if two schemes set the same header name.
  */
 function resolveOperationAuthFns(op: Operation, authRegistry: Map<string, AuthRegistryEntry>): AuthRegistryEntry[] {
-  const requirements = op.security || [];
-  if (!requirements.length) return [];
-  const firstAlternative = requirements[0] || {};
-  return Object.keys(firstAlternative)
-    .map((name) => authRegistry.get(name))
-    .filter((fn): fn is AuthRegistryEntry => Boolean(fn));
+  const names = new Set<string>();
+  for (const requirement of op.security || []) {
+    for (const name of Object.keys(requirement || {})) names.add(name);
+  }
+  return [...names].map((name) => authRegistry.get(name)).filter((fn): fn is AuthRegistryEntry => Boolean(fn));
 }
 
 function renderOperationTest(op: Operation, authRegistry: Map<string, AuthRegistryEntry>): string {

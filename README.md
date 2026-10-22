@@ -199,8 +199,9 @@ in credentials for one scheme never affects tests using another.
 ## Known limitations
 
 - Only `application/json` request/response bodies are handled.
-- Only the first alternative in an operation's `security` requirements is used (schemes *within*
-  that one alternative are all merged in).
+- Every scheme listed in an operation's `security` requirements is sent, even when they're
+  separate entries (which OpenAPI defines as "any one of"). This matches how most specs are
+  actually written, but an API that rejects extra credentials won't work with it.
 - OAuth2, OpenID Connect, and cookie-based auth are detected but not generated.
 - Example values are generated deterministically from the spec, not randomized.
 
